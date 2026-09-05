@@ -2,43 +2,53 @@ package person
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
+// PersonQuery defines lookup filters for person existence.
 type PersonQuery struct {
-	id   string
-	name string
+	ID   string
+	Name string
 }
 
-func CheckPersonExistance(ctx context.Context, driver neo4j.Driver, params PersonQuery) bool {
+// CheckPersonExistence checks if a person matching the ID or Name exists in the database.
+func CheckPersonExistence(ctx context.Context, driver neo4j.Driver, params PersonQuery) (bool, error) {
 	query := `
 		MATCH (p:Person)
-		WHERE p.id = $id OR p.name = $name
+		WHERE ($id <> "" AND p.id = $id) OR ($name <> "" AND p.name = $name)
 		RETURN count(p) > 0 AS exists
 	`
-	query_params := map[string]any{
-		"id":   params.id,
-		"name": params.name,
+	queryParams := map[string]any{
+		"id":   params.ID,
+		"name": params.Name,
 	}
 
 	result, err := neo4j.ExecuteQuery(
 		ctx,
 		driver,
 		query,
-		query_params,
+		queryParams,
 		neo4j.EagerResultTransformer,
 	)
-
 	if err != nil {
-		return false
+		return false, fmt.Errorf("failed to check person existence: %w", err)
 	}
 
 	if len(result.Records) == 0 {
-		return false
+		return false, nil
 	}
 
-	rawExists, _ := result.Records[0].Get("exists")
+	rawExists, found := result.Records[0].Get("exists")
+	if !found {
+		return false, nil
+	}
 
-	return rawExists.(bool)
+	exists, ok := rawExists.(bool)
+	if !ok {
+		return false, fmt.Errorf("unexpected return type for 'exists': %T", rawExists)
+	}
+
+	return exists, nil
 }
