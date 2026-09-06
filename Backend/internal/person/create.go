@@ -53,7 +53,7 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 	}
 
 	if params.DateOfBirth != "" {
-		if params.DateOfBirth.IsValid() {
+		if !params.DateOfBirth.IsValid() {
 			return "", "", errors.New("The Date Of Birth Must Be In DD-MM-YYYY Format")
 		}
 	}

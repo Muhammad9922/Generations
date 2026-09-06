@@ -1,11 +1,14 @@
 package person
 
 import (
+	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"uuid"
 
 	"github.com/Muhammad9922/Generations/internal/db"
+	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
 func TestCreation(t *testing.T) {
@@ -246,3 +249,290 @@ func TestDeleteUser(t *testing.T) {
 	})
 
 }
+
+// readPersonProperties fetches the stored properties of a Person node by its ID.
+// It is a test helper used to verify that updates were actually persisted.
+func readPersonProperties(t *testing.T, ctx context.Context, driver neo4j.Driver, id string) map[string]any {
+	t.Helper()
+
+	result, err := neo4j.ExecuteQuery(ctx, driver,
+		`
+		MATCH (p:Person {id: $id})
+		RETURN p.name AS name, p.gender AS gender, p.date_of_birth AS date_of_birth, p.alive AS alive
+		`,
+		map[string]any{"id": id},
+		neo4j.EagerResultTransformer,
+	)
+	if err != nil {
+		t.Fatalf("failed to read person %q from database: %v", id, err)
+	}
+
+	if len(result.Records) == 0 {
+		t.Fatalf("person %q not found in database while verifying update", id)
+	}
+
+	record := result.Records[0]
+	props := make(map[string]any, 4)
+	for _, key := range []string{"name", "gender", "date_of_birth", "alive"} {
+		if value, found := record.Get(key); found {
+			props[key] = value
+		}
+	}
+
+	return props
+}
+
+func TestUpdatePerson(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	defer driver.Close(ctx)
+
+	// A UUID-backed name ensures this test does not collide with data left
+	// behind by the other tests that share the same database.
+	originalName := "Update Test Person " + uuid.New().String()
+	originalGender := Male
+	originalDOB := DateOfBirth("01-01-1990")
+	originalAlive := true
+
+	_, id, err := CreateNewPerson(ctx, driver, NewPerson{
+		PersonName:  originalName,
+		Gender:      originalGender,
+		DateOfBirth: originalDOB,
+		Alive:       originalAlive,
+	})
+	if err != nil {
+		t.Fatalf("failed to create person for update test: %v", err)
+	}
+	if id == "" {
+		t.Fatalf("expected a non-empty id when creating a person")
+	}
+
+	updatedName := "Updated Person Name"
+	updatedGender := Female
+	updatedDOB := DateOfBirth("02-02-1992")
+	updatedAlive := false
+
+	t.Run("Update All Fields", func(t *testing.T) {
+		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{
+			Name:        &updatedName,
+			Gender:      &updatedGender,
+			DateOfBirth: &updatedDOB,
+			Alive:       &updatedAlive,
+		})
+
+		if err != nil {
+			t.Fatalf("expected no error updating all fields, got: %v", err)
+		}
+		if !wasUpdated {
+			t.Errorf("expected wasUpdated to be true when updating all fields")
+		}
+		if name != updatedName {
+			t.Errorf("expected returned name %q, got %q", updatedName, name)
+		}
+
+		props := readPersonProperties(t, ctx, driver, id)
+		if got := props["name"]; got != updatedName {
+			t.Errorf("persisted name = %v, want %q", got, updatedName)
+		}
+		if got := props["gender"]; got != string(updatedGender) {
+			t.Errorf("persisted gender = %v, want %q", got, updatedGender)
+		}
+		if got := props["date_of_birth"]; got != string(updatedDOB) {
+			t.Errorf("persisted date_of_birth = %v, want %q", got, updatedDOB)
+		}
+		if got := props["alive"]; got != updatedAlive {
+			t.Errorf("persisted alive = %v, want %v", got, updatedAlive)
+		}
+	})
+
+	updatedNameOnly := "Updated Name Only"
+	t.Run("Update Only Name", func(t *testing.T) {
+		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{
+			Name: &updatedNameOnly,
+		})
+
+		if err != nil {
+			t.Fatalf("expected no error updating name only, got: %v", err)
+		}
+		if !wasUpdated {
+			t.Errorf("expected wasUpdated to be true when updating name")
+		}
+		if name != updatedNameOnly {
+			t.Errorf("expected returned name %q, got %q", updatedNameOnly, name)
+		}
+
+		props := readPersonProperties(t, ctx, driver, id)
+		if got := props["name"]; got != updatedNameOnly {
+			t.Errorf("persisted name = %v, want %q", got, updatedNameOnly)
+		}
+		if got := props["gender"]; got != string(updatedGender) {
+			t.Errorf("gender should be untouched = %v, want %q", got, updatedGender)
+		}
+		if got := props["date_of_birth"]; got != string(updatedDOB) {
+			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOB)
+		}
+		if got := props["alive"]; got != updatedAlive {
+			t.Errorf("alive should be untouched = %v, want %v", got, updatedAlive)
+		}
+	})
+
+	updatedGenderAgain := Male
+	t.Run("Update Only Gender", func(t *testing.T) {
+		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{
+			Gender: &updatedGenderAgain,
+		})
+
+		if err != nil {
+			t.Fatalf("expected no error updating gender only, got: %v", err)
+		}
+		if !wasUpdated {
+			t.Errorf("expected wasUpdated to be true when updating gender")
+		}
+		if name != updatedNameOnly {
+			t.Errorf("expected returned name %q, got %q", updatedNameOnly, name)
+		}
+
+		props := readPersonProperties(t, ctx, driver, id)
+		if got := props["gender"]; got != string(updatedGenderAgain) {
+			t.Errorf("persisted gender = %v, want %q", got, updatedGenderAgain)
+		}
+		if got := props["name"]; got != updatedNameOnly {
+			t.Errorf("name should be untouched = %v, want %q", got, updatedNameOnly)
+		}
+		if got := props["date_of_birth"]; got != string(updatedDOB) {
+			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOB)
+		}
+		if got := props["alive"]; got != updatedAlive {
+			t.Errorf("alive should be untouched = %v, want %v", got, updatedAlive)
+		}
+	})
+
+	updatedDOBOnly := DateOfBirth("03-03-1993")
+	t.Run("Update Only Date Of Birth", func(t *testing.T) {
+		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{
+			DateOfBirth: &updatedDOBOnly,
+		})
+
+		if err != nil {
+			t.Fatalf("expected no error updating date of birth only, got: %v", err)
+		}
+		if !wasUpdated {
+			t.Errorf("expected wasUpdated to be true when updating date of birth")
+		}
+		if name != updatedNameOnly {
+			t.Errorf("expected returned name %q, got %q", updatedNameOnly, name)
+		}
+
+		props := readPersonProperties(t, ctx, driver, id)
+		if got := props["date_of_birth"]; got != string(updatedDOBOnly) {
+			t.Errorf("persisted date_of_birth = %v, want %q", got, updatedDOBOnly)
+		}
+		if got := props["name"]; got != updatedNameOnly {
+			t.Errorf("name should be untouched = %v, want %q", got, updatedNameOnly)
+		}
+		if got := props["gender"]; got != string(updatedGenderAgain) {
+			t.Errorf("gender should be untouched = %v, want %q", got, updatedGenderAgain)
+		}
+		if got := props["alive"]; got != updatedAlive {
+			t.Errorf("alive should be untouched = %v, want %v", got, updatedAlive)
+		}
+	})
+
+	updatedAliveAgain := true
+	t.Run("Update Only Alive", func(t *testing.T) {
+		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{
+			Alive: &updatedAliveAgain,
+		})
+
+		if err != nil {
+			t.Fatalf("expected no error updating alive only, got: %v", err)
+		}
+		if !wasUpdated {
+			t.Errorf("expected wasUpdated to be true when updating alive")
+		}
+		if name != updatedNameOnly {
+			t.Errorf("expected returned name %q, got %q", updatedNameOnly, name)
+		}
+
+		props := readPersonProperties(t, ctx, driver, id)
+		if got := props["alive"]; got != updatedAliveAgain {
+			t.Errorf("persisted alive = %v, want %v", got, updatedAliveAgain)
+		}
+		if got := props["name"]; got != updatedNameOnly {
+			t.Errorf("name should be untouched = %v, want %q", got, updatedNameOnly)
+		}
+		if got := props["gender"]; got != string(updatedGenderAgain) {
+			t.Errorf("gender should be untouched = %v, want %q", got, updatedGenderAgain)
+		}
+		if got := props["date_of_birth"]; got != string(updatedDOBOnly) {
+			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOBOnly)
+		}
+	})
+
+	t.Run("Update With No Fields", func(t *testing.T) {
+		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{})
+
+		if err != nil {
+			t.Fatalf("expected no error when no fields are supplied, got: %v", err)
+		}
+		// With an empty UpdateUser the generated Cypher is still `SET p += {}`.
+		// Neo4j reports the SET clause as containing updates in its query
+		// summary counters, so wasUpdated comes back true even though no
+		// property value actually changed.
+		if !wasUpdated {
+			t.Errorf("expected wasUpdated to be true for an empty update")
+		}
+		if name != updatedNameOnly {
+			t.Errorf("expected returned name %q, got %q", updatedNameOnly, name)
+		}
+	})
+
+	t.Run("Update Non-Existent User", func(t *testing.T) {
+		missingID := uuid.New().String()
+
+		name, wasUpdated, err := UpdatePerson(ctx, driver, missingID, UpdateUser{
+			Name: &updatedNameOnly,
+		})
+
+		if err == nil {
+			t.Fatalf("expected an error when updating a non-existent user")
+		}
+		if !strings.Contains(err.Error(), "does not exist") {
+			t.Errorf("expected error to mention the user does not exist, got: %v", err)
+		}
+		if wasUpdated {
+			t.Errorf("expected wasUpdated to be false for a non-existent user")
+		}
+		if name != "" {
+			t.Errorf("expected empty returned name for a non-existent user, got %q", name)
+		}
+	})
+
+	t.Run("Person Still Exists After Updates", func(t *testing.T) {
+		exists, err := CheckPersonExistence(ctx, driver, PersonQuery{ID: id})
+		if err != nil {
+			t.Fatalf("failed to check existence after updates: %v", err)
+		}
+		if !exists {
+			t.Errorf("person %q should still exist after updates", id)
+		}
+	})
+}
+
+func TestUpdatePersonWithClosedDriver(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	driver.Close(ctx)
+
+	newName := "Closed Driver Name"
+	name, wasUpdated, err := UpdatePerson(ctx, driver, "any-id", UpdateUser{Name: &newName})
+
+	if err == nil {
+		t.Fatalf("expected an error when updating with a closed driver")
+	}
+	if wasUpdated {
+		t.Errorf("expected wasUpdated to be false with a closed driver")
+	}
+	if name != "" {
+		t.Errorf("expected empty returned name with a closed driver, got %q", name)
+	}
+}
+
