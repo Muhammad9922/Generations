@@ -69,7 +69,7 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 	neo4j.ExecuteQuery(
 		ctx,
 		driver,
-		`MERGE (p:Person {name: $name, gender: $gender, DateOfBirth: $dob, id: $id, alive: $alive})`,
+		`MERGE (p:Person {name: $name, gender: $gender, date_of_birth: $dob, id: $id, alive: $alive})`,
 		map[string]any{
 			"name":   params.PersonName,
 			"gender": params.Gender,
