@@ -9,7 +9,7 @@ import (
 func TestCreation(t *testing.T) {
 	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
 	defer driver.Close(ctx)
-	personName, err := CreateNewPerson(ctx, driver, NewPerson{
+	personName, _, err := CreateNewPerson(ctx, driver, NewPerson{
 		PersonName:  "Muhammad",
 		ParentID:    "",
 		Gender:      "Male",
@@ -67,7 +67,8 @@ func TestCreationValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(tx *testing.T) {
-			personName, err := CreateNewPerson(ctx, driver, tt.person)
+			personName, _, err := CreateNewPerson(ctx, driver, tt.person)
+
 			if personName != "" || err == nil {
 				tx.Errorf("The Account Should Have Not Been Created")
 			}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"uuid"
 
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
@@ -35,20 +36,20 @@ func (g Gender) IsValid() bool {
 	}
 }
 
-func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson) (string, error) {
+func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson) (string, string, error) {
 	// Name Is Mandatory
 	if params.PersonName == "" {
-		return "", errors.New("The Person's Name Must Be Given")
+		return "", "", errors.New("The Person's Name Must Be Given")
 	}
 
 	if !params.Gender.IsValid() {
-		return "", errors.New("A Gender Must Be Supplied For New Person")
+		return "", "", errors.New("A Gender Must Be Supplied For New Person")
 	}
 
 	if params.DateOfBirth != "" {
 		correct_date := dateRegix.MatchString(params.DateOfBirth)
 		if correct_date == false {
-			return "", errors.New("The Date Of Birth Must Be In DD-MM-YYYY Format")
+			return "", "", errors.New("The Date Of Birth Must Be In DD-MM-YYYY Format")
 		}
 	}
 
@@ -57,12 +58,14 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 			ID: params.ParentID,
 		})
 		if err != nil {
-			return "", fmt.Errorf("failed to verify parent existence: %w", err)
+			return "", "", fmt.Errorf("failed to verify parent existence: %w", err)
 		}
 		if !exists {
-			return "", fmt.Errorf("parent with ID %q does not exist", params.ParentID)
+			return "", "", fmt.Errorf("parent with ID %q does not exist", params.ParentID)
 		}
 	}
+
+	var uuid string = uuid.New().String()
 
 	if params.ParentID != "" {
 		neo4j.ExecuteQuery(
@@ -70,6 +73,7 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 			driver,
 			`MERGE (p:Person {name: $name, gender: $gender, DateOfBirth: $dob, ParentID: $parentid})`,
 			map[string]any{
+				"id":       uuid,
 				"name":     params.PersonName,
 				"gender":   params.Gender,
 				"dob":      params.DateOfBirth,
@@ -91,5 +95,5 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 		)
 	}
 
-	return params.PersonName, nil
+	return params.PersonName, uuid, nil
 }
