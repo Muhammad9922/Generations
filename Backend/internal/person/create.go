@@ -26,13 +26,22 @@ type NewPerson struct {
 
 var dateRegix = regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-\d{4}$`)
 
+func (g Gender) IsValid() bool {
+	switch g {
+	case Male, Female:
+		return true
+	default:
+		return false
+	}
+}
+
 func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson) (string, error) {
 	// Name Is Mandatory
 	if params.PersonName == "" {
 		return "", errors.New("The Person's Name Must Be Given")
 	}
 
-	if params.Gender == "" {
+	if !params.Gender.IsValid() {
 		return "", errors.New("A Gender Must Be Supplied For New Person")
 	}
 

@@ -33,7 +33,46 @@ func TestCreation(t *testing.T) {
 	if exists == false {
 		t.Errorf("New User Still Not Found: %v", err)
 	}
+}
 
+func TestCreationValidation(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	defer driver.Close(ctx)
+
+	tests := []struct {
+		name   string
+		person NewPerson
+	}{
+		{
+			"Wrong Date Of Birth",
+			NewPerson{
+				PersonName:  "Person Name 1",
+				ParentID:    "",
+				DateOfBirth: "2023-11-10",
+				Gender:      "Male",
+				Alive:       true,
+			},
+		},
+		{
+			"Wrong Gender Content",
+			NewPerson{
+				PersonName:  "Person Name 2",
+				ParentID:    "",
+				DateOfBirth: "11-10-2003",
+				Gender:      "Invalid Gender",
+				Alive:       true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(tx *testing.T) {
+			personName, err := CreateNewPerson(ctx, driver, tt.person)
+			if personName != "" || err == nil {
+				tx.Errorf("The Account Should Have Not Been Created")
+			}
+		})
+	}
 }
 
 func TestCheckingSimpleExistance(t *testing.T) {
