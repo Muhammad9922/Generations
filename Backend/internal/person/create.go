@@ -21,7 +21,6 @@ type NewPerson struct {
 	PersonName  string
 	Gender      Gender
 	DateOfBirth string
-	MarriageID  string
 	Alive       bool
 }
 
@@ -53,8 +52,6 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 		}
 	}
 
-	// TODO(): Add Marriage ID Validation Logic
-
 	var uuid string = func(uid string) string {
 		if uid != "" {
 			return uid
@@ -76,8 +73,6 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 		},
 		neo4j.EagerResultTransformer,
 	)
-
-	// TODO: Implement Marriage ID Logic
 
 	return params.PersonName, uuid, nil
 }

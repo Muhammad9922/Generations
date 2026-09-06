@@ -13,7 +13,6 @@ func TestCreation(t *testing.T) {
 	defer driver.Close(ctx)
 	personName, _, err := CreateNewPerson(ctx, driver, NewPerson{
 		PersonName:  "Muhammad",
-		MarriageID:  "",
 		Gender:      "Male",
 		DateOfBirth: "22-10-2005",
 	})
@@ -49,7 +48,6 @@ func TestCreationValidation(t *testing.T) {
 			"Wrong Date Of Birth",
 			NewPerson{
 				PersonName:  "Person Name 1",
-				MarriageID:  "",
 				DateOfBirth: "2023-11-10",
 				Gender:      "Male",
 				Alive:       true,
@@ -59,7 +57,6 @@ func TestCreationValidation(t *testing.T) {
 			"Empty Name",
 			NewPerson{
 				PersonName:  "",
-				MarriageID:  "",
 				DateOfBirth: "2023-11-10",
 				Gender:      "Male",
 				Alive:       true,
@@ -69,7 +66,6 @@ func TestCreationValidation(t *testing.T) {
 			"Wrong Gender Content",
 			NewPerson{
 				PersonName:  "Person Name 2",
-				MarriageID:  "",
 				DateOfBirth: "11-10-2003",
 				Gender:      "Invalid Gender",
 				Alive:       true,
