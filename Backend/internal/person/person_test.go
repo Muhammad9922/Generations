@@ -11,7 +11,7 @@ func TestCreation(t *testing.T) {
 	defer driver.Close(ctx)
 	personName, _, err := CreateNewPerson(ctx, driver, NewPerson{
 		PersonName:  "Muhammad",
-		ParentID:    "",
+		MarriageID:  "",
 		Gender:      "Male",
 		DateOfBirth: "22-10-2005",
 	})
@@ -47,7 +47,17 @@ func TestCreationValidation(t *testing.T) {
 			"Wrong Date Of Birth",
 			NewPerson{
 				PersonName:  "Person Name 1",
-				ParentID:    "",
+				MarriageID:  "",
+				DateOfBirth: "2023-11-10",
+				Gender:      "Male",
+				Alive:       true,
+			},
+		},
+		{
+			"Empty Name",
+			NewPerson{
+				PersonName:  "",
+				MarriageID:  "",
 				DateOfBirth: "2023-11-10",
 				Gender:      "Male",
 				Alive:       true,
@@ -57,7 +67,7 @@ func TestCreationValidation(t *testing.T) {
 			"Wrong Gender Content",
 			NewPerson{
 				PersonName:  "Person Name 2",
-				ParentID:    "",
+				MarriageID:  "",
 				DateOfBirth: "11-10-2003",
 				Gender:      "Invalid Gender",
 				Alive:       true,
@@ -88,4 +98,21 @@ func TestCheckingSimpleExistance(t *testing.T) {
 	if exists {
 		t.Errorf("Such A User Should Not Be Fount")
 	}
+}
+
+func TestCheckSimpleExistanceWithClosedDriver(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	driver.Close(ctx)
+
+	person := PersonQuery{
+		ID:   "Anything",
+		Name: "Anything",
+	}
+
+	_, err := CheckPersonExistence(ctx, driver, person)
+
+	if err == nil {
+		t.Errorf("Error Should Have Been Thrown Due To Closed Driver")
+	}
+
 }
