@@ -179,3 +179,70 @@ func TestCheckSameNameUsers(t *testing.T) {
 		}
 	})
 }
+
+func TestDeleteUser(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+
+	var id string
+
+	t.Run("Creating Sample User", func(t *testing.T) {
+		_, personID, err := CreateNewPerson(ctx, driver, NewPerson{
+			PersonName:  "New Person Name",
+			Gender:      Male,
+			DateOfBirth: "10-11-2005",
+		})
+
+		if err != nil {
+			t.Fatalf("There Was An Error Creating New User %v", err)
+		}
+
+		id = personID
+	})
+
+	t.Run("Delete New User", func(t *testing.T) {
+		_, success, err := DeleteUser(ctx, driver, id)
+		if !success {
+			t.Fatalf("Unsuccessful Attempt To Delete User")
+		}
+		if err != nil {
+			t.Fatalf("Error While Deleting: %v", err)
+		}
+	})
+
+	t.Run("Check Existance", func(t *testing.T) {
+		exists, err := CheckPersonExistence(ctx, driver, PersonQuery{
+			ID: id,
+		})
+
+		if exists {
+			t.Errorf("User Exists Even After Deleting")
+		}
+
+		if err != nil {
+			t.Errorf("Error While Checking For User Existance: %v", err)
+		}
+	})
+
+	t.Run("Delete To Non Existing User ", func(t *testing.T) {
+		_, success, err := DeleteUser(ctx, driver, id)
+		if success {
+			t.Fatalf("Somehow Attempt To Delete User Succeded")
+		}
+		if err != nil {
+			t.Fatalf("Error While Deleting: %v", err)
+		}
+	})
+
+	driver.Close(ctx)
+	t.Run("Deleting New User After Closing The Driver", func(t *testing.T) {
+		_, success, err := DeleteUser(ctx, driver, id)
+		if success {
+			t.Fatalf("Somehow Closed Driver Deleted A Non Existing User")
+		}
+
+		if err == nil {
+			t.Fatalf("Somehow Closed Driver Didn't Throw Error")
+		}
+	})
+
+}
