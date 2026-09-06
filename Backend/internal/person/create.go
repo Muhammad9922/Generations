@@ -17,6 +17,7 @@ const (
 )
 
 type NewPerson struct {
+	id          string
 	PersonName  string
 	Gender      Gender
 	DateOfBirth string
@@ -54,16 +55,24 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 
 	// TODO(): Add Marriage ID Validation Logic
 
-	var uuid string = uuid.New().String()
+	var uuid string = func(uid string) string {
+		if uid != "" {
+			return uid
+		} else {
+			return uuid.New().String()
+		}
+	}(params.id)
 
 	neo4j.ExecuteQuery(
 		ctx,
 		driver,
-		`MERGE (p:Person {name: $name, gender: $gender, DateOfBirth: $dob})`,
+		`MERGE (p:Person {name: $name, gender: $gender, DateOfBirth: $dob, id: $id, alive: $alive})`,
 		map[string]any{
 			"name":   params.PersonName,
 			"gender": params.Gender,
 			"dob":    params.DateOfBirth,
+			"id":     uuid,
+			"alive":  params.Alive,
 		},
 		neo4j.EagerResultTransformer,
 	)

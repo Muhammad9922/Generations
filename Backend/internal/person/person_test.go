@@ -1,7 +1,9 @@
 package person
 
 import (
+	"strconv"
 	"testing"
+	"uuid"
 
 	"github.com/Muhammad9922/Generations/internal/db"
 )
@@ -86,6 +88,25 @@ func TestCreationValidation(t *testing.T) {
 	}
 }
 
+func TestCreationWithUID(t *testing.T) {
+	uuid := uuid.New().String()
+	newPerson := NewPerson{
+		id:          uuid,
+		PersonName:  "Some Person Name",
+		Gender:      "Male",
+		DateOfBirth: "20-10-2000",
+	}
+
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	defer driver.Close(ctx)
+
+	_, id, _ := CreateNewPerson(ctx, driver, newPerson)
+
+	if id != uuid {
+		t.Errorf("The UUID Does Not Match %s != %s", id, uuid)
+	}
+}
+
 func TestCheckingSimpleExistance(t *testing.T) {
 	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
 	defer driver.Close(ctx)
@@ -114,5 +135,51 @@ func TestCheckSimpleExistanceWithClosedDriver(t *testing.T) {
 	if err == nil {
 		t.Errorf("Error Should Have Been Thrown Due To Closed Driver")
 	}
+}
 
+func TestCheckSameNameUsers(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	defer driver.Close(ctx) // 1. Defer closure so driver stays open during tests
+
+	users := []NewPerson{
+		{
+			PersonName:  "Same Name",
+			Gender:      Male,
+			DateOfBirth: "09-11-2000",
+			Alive:       true,
+		},
+		{
+			PersonName:  "Same Name",
+			Gender:      Female,
+			DateOfBirth: "09-11-2000",
+			Alive:       true,
+		},
+	}
+
+	createdIDs := make([]string, len(users))
+
+	for index, user := range users {
+		t.Run(strconv.Itoa(index), func(tx *testing.T) {
+			_, id, err := CreateNewPerson(ctx, driver, user)
+			if err != nil { // 3. Assert creation success
+				tx.Fatalf("failed to create person %d: %v", index, err)
+			}
+
+			createdIDs[index] = id
+		})
+	}
+
+	t.Run("Checking All Exist", func(tx *testing.T) {
+		for _, id := range createdIDs {
+			exists, err := CheckPersonExistence(ctx, driver, PersonQuery{
+				ID: id,
+			})
+			if err != nil {
+				tx.Fatalf("failed to check existence for ID %q: %v", id, err)
+			}
+			if !exists {
+				tx.Errorf("user with ID %q does not exist in database", id)
+			}
+		}
+	})
 }
