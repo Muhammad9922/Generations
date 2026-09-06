@@ -10,6 +10,7 @@ import (
 )
 
 type Gender string
+type DateOfBirth string
 
 const (
 	Male   Gender = "Male"
@@ -20,7 +21,7 @@ type NewPerson struct {
 	id          string
 	PersonName  string
 	Gender      Gender
-	DateOfBirth string
+	DateOfBirth DateOfBirth
 	Alive       bool
 }
 
@@ -35,6 +36,12 @@ func (g Gender) IsValid() bool {
 	}
 }
 
+func (d DateOfBirth) IsValid() bool {
+	correct_date := dateRegix.MatchString(string(d))
+	return correct_date
+
+}
+
 func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson) (string, string, error) {
 	// Name Is Mandatory
 	if params.PersonName == "" {
@@ -46,8 +53,7 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 	}
 
 	if params.DateOfBirth != "" {
-		correct_date := dateRegix.MatchString(params.DateOfBirth)
-		if correct_date == false {
+		if params.DateOfBirth.IsValid() {
 			return "", "", errors.New("The Date Of Birth Must Be In DD-MM-YYYY Format")
 		}
 	}
