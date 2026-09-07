@@ -41,7 +41,15 @@ func (g Gender) IsValid() bool {
 func (d DateProper) IsValid() bool {
 	correct_date := dateRegix.MatchString(string(d))
 	return correct_date
+}
 
+func (d DateProper) GetMS() int {
+	const layout = "02-01-2006"
+	d_object, err := time.Parse(layout, string(d))
+	if err != nil {
+		return 0
+	}
+	return int(d_object.UnixMilli())
 }
 
 func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson) (string, string, error) {
@@ -67,16 +75,18 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 
 		// Date Of Death Must Be After Date Of Birth
 		if params.DateOfBirth != "" {
-			const layout = "02-01-2006"
-			time_birth_object, err := time.Parse(layout, string(params.DateOfBirth))
-			if err != nil {
-				return "", "", errors.New("The Date Of Birth Is Not Proper")
+			time_birth := params.DateOfBirth.GetMS()
+
+			if time_birth == 0 {
+				return "", "", errors.New("Improper Date Of Birth")
 			}
-			time_birth := time_birth_object.UnixMilli()
 
-			time_death_object, err := time.Parse(layout, string(params.DateOfDeath))
+			time_death := params.DateOfDeath.GetMS()
+			if time_death == 0 {
+				return "", "", errors.New("Improper Date Of Death")
+			}
 
-			if time_death := time_death_object.UnixMilli(); time_death < time_birth {
+			if time_death < time_birth {
 				return "", "", errors.New("Time Of Death Must Be After Time Of Birth")
 			}
 		}

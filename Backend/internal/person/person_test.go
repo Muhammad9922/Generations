@@ -588,6 +588,104 @@ func TestUpdatePersonWithClosedDriver(t *testing.T) {
 	}
 }
 
+func TestMoreData(t *testing.T) {
+	defaultCreation := NewPerson{
+		Alive:       true,
+		DateOfBirth: "11-10-2000",
+		DateOfDeath: "10-10-2003",
+		PersonName:  "Some Name Here",
+		Gender:      Male,
+	}
+
+	tests := []struct {
+		name           string
+		shouldComplete bool
+		creation       NewPerson
+		update         UpdateUser
+	}{
+		{
+			name:           "Basic Test",
+			shouldComplete: true,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				Name:        Ptr("New Name Here"),
+				DateOfBirth: Ptr(DateProper("11-10-1999")),
+				DateOfDeath: Ptr(DateProper("11-10-2009")),
+				Gender:      Ptr(Female),
+				Alive:       Ptr(false),
+			},
+		},
+		{
+			name:           "Invalid Date Of Birth",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				DateOfBirth: Ptr(DateProper("11-32-1999")),
+			},
+		},
+		{
+			name:           "Invalid Date Of Death",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				DateOfDeath: Ptr(DateProper("11-12-200")),
+			},
+		},
+		{
+			name:           "New Date Of Death Is Before Date Of Birth",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				DateOfDeath: Ptr(DateProper("11-10-1993")),
+			},
+		},
+		{
+			name:           "New Date Of Birth Is After The Date Of Death",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				DateOfBirth: Ptr(DateProper("10-10-2009")),
+			},
+		},
+	}
+
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	defer driver.Close(ctx)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, id, err := CreateNewPerson(ctx, driver, test.creation)
+
+			if err != nil {
+				t.Fatalf("Error Creating New User")
+			}
+
+			_, updated, err := UpdatePerson(ctx, driver, id, test.update)
+
+			if test.shouldComplete {
+				if err != nil {
+					t.Fatalf("There Was An Error Updating The User: %q", err)
+				}
+			} else {
+				if err == nil {
+					t.Error("There should have been an error but wasn't")
+				}
+			}
+
+			if test.shouldComplete {
+				if !updated {
+					t.Fatalf("Unable To Update The User For Some Reason")
+				}
+			} else {
+				if updated {
+					t.Errorf("Able To Update The User For Some Reason While It Should Have Failed")
+				}
+			}
+
+		})
+	}
+}
+
 func TestPersonQuery(t *testing.T) {
 	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
 
