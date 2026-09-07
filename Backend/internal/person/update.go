@@ -28,6 +28,9 @@ func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update Up
 	}
 
 	if update.Name != nil {
+		if *update.Name == "" {
+			return "", false, fmt.Errorf("Invalid Name Provided: %s", *update.Name)
+		}
 		props["name"] = *update.Name
 	}
 
@@ -44,7 +47,7 @@ func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update Up
 
 	if update.DateOfDeath != nil {
 		if update.DateOfDeath != nil && !update.DateOfDeath.IsValid() {
-			return "", false, errors.New("Invalid Date Of Birth Provided")
+			return "", false, errors.New("Invalid Date Of Death Provided")
 		}
 		props["date_of_death"] = *update.DateOfDeath
 	}
@@ -53,78 +56,37 @@ func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update Up
 		var dob DateProper
 		var dod DateProper
 
-		const query = `
-			MATCH (p:Person {id: $id})
-			RETURN p.date_of_birth as dob, p.date_of_death as dod
-		`
-
-		params := map[string]any{
-			"id": id,
-		}
-
-		result, err := neo4j.ExecuteQuery(
-			ctx,
-			driver,
-			query,
-			params,
-			neo4j.EagerResultTransformer,
-		)
+		userObject, err := GetPerson(ctx, driver, id)
 
 		if err != nil {
 			return "", false, err
 		}
 
-		// 1. Guard against empty records to prevent panic
-		if len(result.Records) == 0 {
-			return "", false, fmt.Errorf("Person with id %s not found", id)
+		if userObject == nil {
+			return "", false, fmt.Errorf("Error While Retieving Person: %s", id)
 		}
+		dob = userObject.DateOfBirth
+		dod = userObject.DateOfDeath
 
-		record := result.Records[0]
-
-		// Populate existing values from DB
-		if raw, found := record.Get("dob"); found && raw != nil {
-			if str, ok := raw.(string); ok {
-				dob = DateProper(str)
-			}
-		}
-
-		if raw, found := record.Get("dod"); found && raw != nil {
-			if str, ok := raw.(string); ok {
-				dod = DateProper(str)
-			}
-		}
-
-		// 2. Override with new update values if provided
 		if update.DateOfBirth != nil {
-			dob = DateProper(*update.DateOfBirth)
+			dob = *update.DateOfBirth
 		}
+
 		if update.DateOfDeath != nil {
-			dod = DateProper(*update.DateOfDeath)
+			dod = *update.DateOfDeath
 		}
 
-		// 3. Validate individual date formats independently
-		var parsed_dob, parsed_dod int64
+		timeOfDeath := dod.GetMS()
+		timeOfBirth := dob.GetMS()
 
-		if dob != "" {
-			parsed_dob = int64(dob.GetMS())
-			if parsed_dob == 0 {
-				return "", false, fmt.Errorf("Invalid Date Of Birth Provided: %s", dob)
+		if timeOfBirth > 0 && timeOfDeath > 0 {
+			if timeOfBirth > timeOfDeath {
+				return "", false, fmt.Errorf("Time Of Death Is Before Time Of Birth | tb: %v | td: %v", timeOfBirth, timeOfDeath)
 			}
+		} else {
+			return "", false, fmt.Errorf("Invalid Time Recieved For |TOD-MS %v TOD-ORG %v| = |TOB-MS %v TOB-ORG %v|", timeOfDeath, dod, timeOfBirth, dob)
 		}
 
-		if dod != "" {
-			parsed_dod = int64(dod.GetMS())
-			if parsed_dod == 0 {
-				return "", false, fmt.Errorf("Invalid Date Of Death Provided: %s", dod)
-			}
-		}
-
-		// 4. Validate relative order when both dates are present
-		if dob != "" && dod != "" {
-			if parsed_dob > parsed_dod {
-				return "", false, errors.New("Date Of Death Is Before Date Of Birth")
-			}
-		}
 	}
 
 	// Single query handles both existence check and property updates

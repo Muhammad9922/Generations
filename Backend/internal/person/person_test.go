@@ -134,7 +134,7 @@ func TestCreationValidation(t *testing.T) {
 func TestCreationWithUID(t *testing.T) {
 	uuid := uuid.New().String()
 	newPerson := NewPerson{
-		id:          uuid,
+		Id:          uuid,
 		PersonName:  "Some Person Name",
 		Gender:      "Male",
 		DateOfBirth: "20-10-2000",
@@ -588,7 +588,7 @@ func TestUpdatePersonWithClosedDriver(t *testing.T) {
 	}
 }
 
-func TestMoreData(t *testing.T) {
+func TestMoreUpdateData(t *testing.T) {
 	defaultCreation := NewPerson{
 		Alive:       true,
 		DateOfBirth: "11-10-2000",
@@ -647,6 +647,66 @@ func TestMoreData(t *testing.T) {
 				DateOfBirth: Ptr(DateProper("10-10-2009")),
 			},
 		},
+		// --- NEW TESTS ADDED BELOW ---
+		{
+			name:           "Partial Update - Only Name",
+			shouldComplete: true,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				Name: Ptr("Updated Name Only"),
+			},
+		},
+		{
+			name:           "Partial Update - Only Gender",
+			shouldComplete: true,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				Gender: Ptr(Female),
+			},
+		},
+		{
+			name:           "Empty Name Validation Should Fail",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				Name: Ptr(""), // Assuming your validation rejects empty names
+			},
+		},
+		{
+			name:           "Update Both Dates Together - New DOD Before New DOB",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				DateOfBirth: Ptr(DateProper("10-10-2020")),
+				DateOfDeath: Ptr(DateProper("10-10-2015")),
+			},
+		},
+		{
+			name:           "DOB and DOD Are On The Same Day",
+			shouldComplete: true,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				DateOfBirth: Ptr(DateProper("05-05-2015")),
+				DateOfDeath: Ptr(DateProper("05-05-2015")),
+			},
+		},
+		{
+			name:           "Logical Conflict - Alive Is True But DOD Is Provided",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				Alive:       Ptr(true),
+				DateOfDeath: Ptr(DateProper("10-10-2023")),
+			},
+		},
+		{
+			name:           "Invalid Date Format - Wrong Separators",
+			shouldComplete: false,
+			creation:       defaultCreation,
+			update: UpdateUser{
+				DateOfBirth: Ptr(DateProper("11/10/1999")),
+			},
+		},
 	}
 
 	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
@@ -684,6 +744,16 @@ func TestMoreData(t *testing.T) {
 
 		})
 	}
+
+	t.Run("Trying to update non existant id", func(t *testing.T) {
+		_, _, err := UpdatePerson(ctx, driver, uuid.New().String(), UpdateUser{
+			Name: Ptr("Hello"),
+		})
+
+		if err == nil {
+			t.Errorf("Didn't Throw Error When Tring To Update A Non Existant User")
+		}
+	})
 }
 
 func TestPersonQuery(t *testing.T) {
@@ -696,7 +766,7 @@ func TestPersonQuery(t *testing.T) {
 		{
 			"No Date Of Birth Status",
 			NewPerson{
-				id:         uuid.New().String(),
+				Id:         uuid.New().String(),
 				PersonName: "Person Name 3",
 				Gender:     "Male",
 				Alive:      true,
@@ -705,7 +775,7 @@ func TestPersonQuery(t *testing.T) {
 		{
 			"Full Account",
 			NewPerson{
-				id:          uuid.New().String(),
+				Id:          uuid.New().String(),
 				PersonName:  "Person Name 4",
 				Gender:      "Male",
 				Alive:       false,
@@ -719,16 +789,16 @@ func TestPersonQuery(t *testing.T) {
 			personName, personID, err := CreateNewPerson(ctx, driver, test.person)
 
 			if err != nil {
-				t.Errorf("Error Creating New User ID %s and User Name %s", test.person.id, test.person.PersonName)
+				t.Errorf("Error Creating New User ID %s and User Name %s", test.person.Id, test.person.PersonName)
 			}
 
 			if personName == "" || personID == "" {
-				t.Errorf("Error Creating New User ID %s and User Name %s", test.person.id, test.person.PersonName)
+				t.Errorf("Error Creating New User ID %s and User Name %s", test.person.Id, test.person.PersonName)
 			}
 		})
 
 		t.Run("Testing Query "+test.name, func(t *testing.T) {
-			person, err := GetPerson(ctx, driver, test.person.id)
+			person, err := GetPerson(ctx, driver, test.person.Id)
 			if err != nil || person == nil {
 				t.Errorf("Error While Querying User %v", err)
 			}
@@ -747,7 +817,7 @@ func TestPersonQuery(t *testing.T) {
 
 	driver.Close(ctx)
 	t.Run("Testing Closed Driver", func(t *testing.T) {
-		_, err := GetPerson(ctx, driver, tests[0].person.id)
+		_, err := GetPerson(ctx, driver, tests[0].person.Id)
 		if err == nil {
 			t.Errorf("A Non Existant ID Should Give An Error")
 		}
