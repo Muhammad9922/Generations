@@ -74,6 +74,28 @@ func TestCreationValidation(t *testing.T) {
 				Alive:       true,
 			},
 		},
+		{
+			"No Gender Provided",
+			NewPerson{
+				PersonName:  "Person Name 1",
+				DateOfBirth: "10-10-2010",
+				Alive:       true,
+			},
+		},
+		{
+			"No Alive Status",
+			NewPerson{
+				PersonName:  "Person Name 2",
+				DateOfBirth: "2023-11-10",
+				Gender:      "Male",
+			},
+		},
+		{
+			"Just Name",
+			NewPerson{
+				PersonName: "Person Name 4",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -536,3 +558,57 @@ func TestUpdatePersonWithClosedDriver(t *testing.T) {
 	}
 }
 
+func TestPersonQuery(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	defer driver.Close(ctx)
+
+	tests := []struct {
+		name   string
+		person NewPerson
+	}{
+		{
+			"No Date Of Birth Status",
+			NewPerson{
+				id:         uuid.New().String(),
+				PersonName: "Person Name 3",
+				Gender:     "Male",
+				Alive:      true,
+			},
+		},
+		{
+			"Full Account",
+			NewPerson{
+				id:          uuid.New().String(),
+				PersonName:  "Person Name 4",
+				Gender:      "Male",
+				Alive:       false,
+				DateOfBirth: "11-10-2005",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run("Testing Creation Of "+test.name, func(t *testing.T) {
+			personName, personID, err := CreateNewPerson(ctx, driver, test.person)
+
+			if err != nil {
+				t.Errorf("Error Creating New User ID %s and User Name %s", test.person.id, test.person.PersonName)
+			}
+
+			if personName == "" || personID == "" {
+				t.Errorf("Error Creating New User ID %s and User Name %s", test.person.id, test.person.PersonName)
+			}
+		})
+
+		t.Run("Testing Query "+test.name, func(t *testing.T) {
+			person, err := GetPerson(ctx, driver, test.person.id)
+			if err != nil || person == nil {
+				t.Errorf("Error While Querying User %v", err)
+			}
+			if len(strings.Split(person.PersonName, "")) < 4 {
+				t.Errorf("Invalid User Name: %s", person.PersonName)
+			}
+		})
+	}
+
+}
