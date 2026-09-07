@@ -560,7 +560,6 @@ func TestUpdatePersonWithClosedDriver(t *testing.T) {
 
 func TestPersonQuery(t *testing.T) {
 	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
-	defer driver.Close(ctx)
 
 	tests := []struct {
 		name   string
@@ -610,5 +609,20 @@ func TestPersonQuery(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Querying Non Existant ID", func(t *testing.T) {
+		_, err := GetPerson(ctx, driver, uuid.NewV4().String())
+		if err == nil {
+			t.Errorf("A Non Existant ID Should Give An Error")
+		}
+	})
+
+	driver.Close(ctx)
+	t.Run("Testing Closed Driver", func(t *testing.T) {
+		_, err := GetPerson(ctx, driver, tests[0].person.id)
+		if err == nil {
+			t.Errorf("A Non Existant ID Should Give An Error")
+		}
+	})
 
 }
