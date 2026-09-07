@@ -10,7 +10,7 @@ import (
 func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson, error) {
 	const query = `
     MATCH (p:Person {id: $id})
-    RETURN p.name AS name, p.id AS id, p.gender AS gender, p.date_of_birth AS date_of_birth, p.alive AS alive
+    RETURN p.name AS name, p.id AS id, p.gender AS gender, p.date_of_birth AS date_of_birth, p.alive AS alive, p.date_of_death as date_of_death
     `
 	params := map[string]any{
 		"id": id,
@@ -52,7 +52,10 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 		p.Gender = Gender(val) // Convert string -> Gender custom type
 	}
 	if val, ok := personMap["date_of_birth"].(string); ok {
-		p.DateOfBirth = DateOfBirth(val) // Handles missing optional date safely
+		p.DateOfBirth = DateProper(val) // Handles missing optional date safely
+	}
+	if val, ok := personMap["date_of_death"].(string); ok {
+		p.DateOfDeath = DateProper(val) // Handles missing optional date safely
 	}
 	if val, ok := personMap["alive"].(bool); ok {
 		p.Alive = val

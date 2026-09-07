@@ -18,6 +18,8 @@ func TestCreation(t *testing.T) {
 		PersonName:  "Muhammad",
 		Gender:      "Male",
 		DateOfBirth: "22-10-2005",
+		Alive:       false,
+		DateOfDeath: "22-10-2008",
 	})
 
 	if personName == "" {
@@ -88,6 +90,26 @@ func TestCreationValidation(t *testing.T) {
 				PersonName:  "Person Name 2",
 				DateOfBirth: "2023-11-10",
 				Gender:      "Male",
+			},
+		},
+		{
+			"Death Of Death Invalid",
+			NewPerson{
+				PersonName:  "",
+				DateOfBirth: "2023-11-10",
+				Gender:      "Male",
+				Alive:       true,
+				DateOfDeath: "10-10-2029",
+			},
+		},
+		{
+			"Death Of Death In Past",
+			NewPerson{
+				PersonName:  "",
+				DateOfBirth: "2023-11-10",
+				Gender:      "Male",
+				Alive:       true,
+				DateOfDeath: "2020-10-10",
 			},
 		},
 		{
@@ -280,7 +302,7 @@ func readPersonProperties(t *testing.T, ctx context.Context, driver neo4j.Driver
 	result, err := neo4j.ExecuteQuery(ctx, driver,
 		`
 		MATCH (p:Person {id: $id})
-		RETURN p.name AS name, p.gender AS gender, p.date_of_birth AS date_of_birth, p.alive AS alive
+		RETURN p.name AS name, p.gender AS gender, p.date_of_birth AS date_of_birth, p.alive AS alive, p.date_of_death AS date_of_death
 		`,
 		map[string]any{"id": id},
 		neo4j.EagerResultTransformer,
@@ -295,7 +317,7 @@ func readPersonProperties(t *testing.T, ctx context.Context, driver neo4j.Driver
 
 	record := result.Records[0]
 	props := make(map[string]any, 4)
-	for _, key := range []string{"name", "gender", "date_of_birth", "alive"} {
+	for _, key := range []string{"name", "gender", "date_of_birth", "alive", "date_of_death"} {
 		if value, found := record.Get(key); found {
 			props[key] = value
 		}
@@ -312,7 +334,8 @@ func TestUpdatePerson(t *testing.T) {
 	// behind by the other tests that share the same database.
 	originalName := "Update Test Person " + uuid.New().String()
 	originalGender := Male
-	originalDOB := DateOfBirth("01-01-1990")
+	originalDOB := DateProper("01-01-1990")
+	originalDOD := DateProper("10-10-2003")
 	originalAlive := true
 
 	_, id, err := CreateNewPerson(ctx, driver, NewPerson{
@@ -320,7 +343,9 @@ func TestUpdatePerson(t *testing.T) {
 		Gender:      originalGender,
 		DateOfBirth: originalDOB,
 		Alive:       originalAlive,
+		DateOfDeath: originalDOD,
 	})
+
 	if err != nil {
 		t.Fatalf("failed to create person for update test: %v", err)
 	}
@@ -330,8 +355,9 @@ func TestUpdatePerson(t *testing.T) {
 
 	updatedName := "Updated Person Name"
 	updatedGender := Female
-	updatedDOB := DateOfBirth("02-02-1992")
+	updatedDOB := DateProper("02-02-1992")
 	updatedAlive := false
+	updatedDOD := DateProper("02-11-2023")
 
 	t.Run("Update All Fields", func(t *testing.T) {
 		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{
@@ -339,6 +365,7 @@ func TestUpdatePerson(t *testing.T) {
 			Gender:      &updatedGender,
 			DateOfBirth: &updatedDOB,
 			Alive:       &updatedAlive,
+			DateOfDeath: &updatedDOD,
 		})
 
 		if err != nil {
@@ -363,6 +390,9 @@ func TestUpdatePerson(t *testing.T) {
 		}
 		if got := props["alive"]; got != updatedAlive {
 			t.Errorf("persisted alive = %v, want %v", got, updatedAlive)
+		}
+		if got := props["date_of_death"]; got != string(updatedDOD) {
+			t.Errorf("presisted death - %v, want %v", got, updatedDOD)
 		}
 	})
 
@@ -428,7 +458,7 @@ func TestUpdatePerson(t *testing.T) {
 		}
 	})
 
-	updatedDOBOnly := DateOfBirth("03-03-1993")
+	updatedDOBOnly := DateProper("03-03-1993")
 	t.Run("Update Only Date Of Birth", func(t *testing.T) {
 		name, wasUpdated, err := UpdatePerson(ctx, driver, id, UpdateUser{
 			DateOfBirth: &updatedDOBOnly,
