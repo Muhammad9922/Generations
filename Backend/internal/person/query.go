@@ -60,23 +60,3 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 
 	return p, nil
 }
-
-/*
-
-func GetParents() []NewPerson {
-
-}
-
-func GetChildren() []NewPerson {
-
-}
-
-func GetSpouse() {
-
-}
-
-func GetConnectionBetweenTwoPerson() {
-
-}
-
-*/
