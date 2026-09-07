@@ -46,7 +46,7 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 		p.PersonName = val
 	}
 	if val, ok := personMap["id"].(string); ok {
-		p.id = val
+		p.Id = val
 	}
 	if val, ok := personMap["gender"].(string); ok {
 		p.Gender = Gender(val) // Convert string -> Gender custom type

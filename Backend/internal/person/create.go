@@ -19,7 +19,7 @@ const (
 )
 
 type NewPerson struct {
-	id          string
+	Id          string
 	PersonName  string
 	Gender      Gender
 	DateOfBirth DateProper
@@ -39,17 +39,55 @@ func (g Gender) IsValid() bool {
 }
 
 func (d DateProper) IsValid() bool {
-	correct_date := dateRegix.MatchString(string(d))
-	return correct_date
+	correctDate := dateRegix.MatchString(string(d))
+	return correctDate
 }
 
 func (d DateProper) GetMS() int {
 	const layout = "02-01-2006"
-	d_object, err := time.Parse(layout, string(d))
+	dObject, err := time.Parse(layout, string(d))
 	if err != nil {
-		return 0
+		return -1
 	}
-	return int(d_object.UnixMilli())
+	return int(dObject.UnixMilli())
+}
+
+func (d DateProper) GetNeoDate() (*neo4j.Date, error) {
+	if d == "" {
+		return nil, nil
+	}
+	const dateLayout = "02-01-2006"
+	if d.IsValid() {
+		parsed, err := time.Parse(dateLayout, string(d))
+		if err != nil {
+			return nil, err
+		}
+		neoDate := neo4j.DateOf(parsed)
+		return &neoDate, nil
+	} else {
+		return nil, errors.New("Invalid Date")
+	}
+}
+
+func GetProperDate(val any) DateProper {
+	const dateLayout = "02-01-2006"
+	if val == nil {
+		return ""
+	}
+	switch v := val.(type) {
+	case neo4j.Date:
+		return DateProper(v.Time().Format(dateLayout))
+	case time.Time:
+		return DateProper(v.Format(dateLayout))
+	case string:
+		// Fallback for raw ISO string "YYYY-MM-DD"
+		if t, err := time.Parse("2006-01-02", v); err == nil {
+			return DateProper(t.Format(dateLayout))
+		}
+		return DateProper(v)
+	default:
+		return ""
+	}
 }
 
 func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson) (string, string, error) {
@@ -75,18 +113,18 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 
 		// Date Of Death Must Be After Date Of Birth
 		if params.DateOfBirth != "" {
-			time_birth := params.DateOfBirth.GetMS()
+			msBirth := params.DateOfBirth.GetMS()
 
-			if time_birth == 0 {
+			if msBirth == -1 {
 				return "", "", errors.New("Improper Date Of Birth")
 			}
 
-			time_death := params.DateOfDeath.GetMS()
-			if time_death == 0 {
+			msDeath := params.DateOfDeath.GetMS()
+			if msDeath == -1 {
 				return "", "", errors.New("Improper Date Of Death")
 			}
 
-			if time_death < time_birth {
+			if msDeath < msBirth {
 				return "", "", errors.New("Time Of Death Must Be After Time Of Birth")
 			}
 		}
@@ -98,7 +136,28 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 		} else {
 			return uuid.New().String()
 		}
-	}(params.id)
+	}(params.Id)
+
+	var neoDateBirthFinal neo4j.Date
+	var neoDateDeathFinal neo4j.Date
+
+	if params.DateOfBirth != "" {
+		neoDate, err := params.DateOfBirth.GetNeoDate()
+		if err != nil {
+			return "", "", err
+		} else {
+			neoDateBirthFinal = *neoDate
+		}
+	}
+
+	if params.DateOfDeath != "" {
+		neoDate, err := params.DateOfDeath.GetNeoDate()
+		if err != nil {
+			return "", "", err
+		} else {
+			neoDateDeathFinal = *neoDate
+		}
+	}
 
 	neo4j.ExecuteQuery(
 		ctx,
@@ -107,10 +166,10 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 		map[string]any{
 			"name":   params.PersonName,
 			"gender": params.Gender,
-			"dob":    params.DateOfBirth,
+			"dob":    neoDateBirthFinal,
 			"id":     uuid,
 			"alive":  params.Alive,
-			"dod":    params.DateOfDeath,
+			"dod":    neoDateDeathFinal,
 		},
 		neo4j.EagerResultTransformer,
 	)
