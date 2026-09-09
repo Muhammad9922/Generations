@@ -53,9 +53,15 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 	}
 	if val, ok := personMap["date_of_birth"].(string); ok {
 		p.DateOfBirth = DateProper(val) // Handles missing optional date safely
+		if !p.DateOfBirth.IsValid() {
+			return nil, fmt.Errorf("Invalid Date Of Birth: %s", val)
+		}
 	}
 	if val, ok := personMap["date_of_death"].(string); ok {
 		p.DateOfDeath = DateProper(val) // Handles missing optional date safely
+		if !p.DateOfDeath.IsValid() {
+			return nil, fmt.Errorf("Invalid Date Of Death: %s", val)
+		}
 	}
 	if val, ok := personMap["alive"].(bool); ok {
 		p.Alive = val
