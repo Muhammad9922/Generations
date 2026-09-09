@@ -14,7 +14,7 @@ type NewMarriage struct {
 	DateEnd   person.DateProper
 	SpouseOne string
 	SpouseTwo string
-	ID        string // Capitalized to export it, useful if you need the generated ID outside the package
+	ID        string
 }
 
 func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMarriage) (string, error) {
@@ -22,13 +22,14 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 		marriage.ID = uuid.New().String()
 	}
 
+	if marriage.SpouseOne == "" || marriage.SpouseTwo == "" {
+		return "", fmt.Errorf("both spouses must be provided")
+	}
+
 	// Fetch Spouse One
 	spouseOne, err := person.GetPerson(ctx, driver, marriage.SpouseOne)
 	if err != nil {
 		return "", fmt.Errorf("failed to get spouse one: %w", err)
-	}
-	if spouseOne == nil {
-		return "", fmt.Errorf("user not found for ID: %s", marriage.SpouseOne)
 	}
 
 	// Fetch Spouse Two
@@ -36,8 +37,13 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 	if err != nil {
 		return "", fmt.Errorf("failed to get spouse two: %w", err)
 	}
-	if spouseTwo == nil {
-		return "", fmt.Errorf("user not found for ID: %s", marriage.SpouseTwo)
+
+	if marriage.DateStart != "" && !marriage.DateStart.IsValid() {
+		return "", fmt.Errorf("date start is invalid: %s", marriage.DateStart)
+	}
+
+	if marriage.DateEnd != "" && !marriage.DateEnd.IsValid() {
+		return "", fmt.Errorf("date end is invalid: %s", marriage.DateEnd)
 	}
 
 	// Validate Birth Dates (Birth cannot be AFTER Marriage Start)
@@ -49,12 +55,20 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 	}
 
 	// Validate Death Dates (Marriage End cannot be AFTER Death)
-	// Added a check assuming GetMS() == 0 means the person is still alive
-	if spouseOne.DateOfDeath.GetMS() > 0 && spouseOne.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
+	if spouseOne.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
 		return "", fmt.Errorf("the end of marriage %v is after the death of spouse one %v", marriage.DateEnd, spouseOne.DateOfDeath)
 	}
-	if spouseTwo.DateOfDeath.GetMS() > 0 && spouseTwo.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
+	if spouseTwo.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
 		return "", fmt.Errorf("the end of marriage %v is after the death of spouse two %v", marriage.DateEnd, spouseTwo.DateOfDeath)
+	}
+
+	// Both Genders Should Be Provided
+	if spouseOne.Gender == person.Male && spouseTwo.Gender == person.Male {
+		return "", fmt.Errorf("both spouses are male")
+	}
+
+	if spouseOne.Gender == person.Female && spouseTwo.Gender == person.Female {
+		return "", fmt.Errorf("both spouses are female")
 	}
 
 	// Combined Cypher Query guarantees atomicity.
