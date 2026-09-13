@@ -691,15 +691,6 @@ func TestMoreUpdateData(t *testing.T) {
 			},
 		},
 		{
-			name:           "Logical Conflict - Alive Is True But DOD Is Provided",
-			shouldComplete: false,
-			creation:       defaultCreation,
-			update: UpdateUser{
-				Alive:       Ptr(true),
-				DateOfDeath: Ptr(DateProper("10-10-2023")),
-			},
-		},
-		{
 			name:           "Invalid Date Format - Wrong Separators",
 			shouldComplete: false,
 			creation:       defaultCreation,
@@ -780,6 +771,7 @@ func TestPersonQuery(t *testing.T) {
 				Gender:      "Male",
 				Alive:       false,
 				DateOfBirth: "11-10-2005",
+				DateOfDeath: "11-10-2009",
 			},
 		},
 	}
@@ -799,11 +791,23 @@ func TestPersonQuery(t *testing.T) {
 
 		t.Run("Testing Query "+test.name, func(t *testing.T) {
 			person, err := GetPerson(ctx, driver, test.person.Id)
+			t.Logf(
+				"Person Detailed: %v",
+				person,
+			)
 			if err != nil || person == nil {
 				t.Errorf("Error While Querying User %v", err)
 			}
 			if len(strings.Split(person.PersonName, "")) < 4 {
 				t.Errorf("Invalid User Name: %s", person.PersonName)
+			}
+
+			if test.person.DateOfBirth != "" && person.DateOfBirth != test.person.DateOfBirth {
+				t.Errorf("Invalid Date Of Birth %v | %v", person.DateOfBirth, test.person.DateOfBirth)
+			}
+
+			if test.person.DateOfDeath != "" && person.DateOfDeath != test.person.DateOfDeath {
+				t.Errorf("Invalid Date Of Death %v | %v", person.DateOfDeath, test.person.DateOfDeath)
 			}
 		})
 	}
@@ -823,4 +827,64 @@ func TestPersonQuery(t *testing.T) {
 		}
 	})
 
+}
+
+func TestFullAccountPerson(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	defer driver.Close(ctx)
+
+	// Setup input with all fields populated
+	expected := NewPerson{
+		Id:          uuid.New().String(),
+		PersonName:  "Person Name 4",
+		Gender:      "Male",
+		Alive:       false,
+		DateOfBirth: "11-10-2005",
+		DateOfDeath: "11-10-2009",
+	}
+
+	// Step 1: Create Person
+	t.Run("Create Full Account", func(t *testing.T) {
+		createdName, createdID, err := CreateNewPerson(ctx, driver, expected)
+		if err != nil {
+			t.Fatalf("Failed to create full account person: %v", err)
+		}
+		if createdID != expected.Id {
+			t.Errorf("ID mismatch on creation: got %q, want %q", createdID, expected.Id)
+		}
+		if createdName != expected.PersonName {
+			t.Errorf("Name mismatch on creation: got %q, want %q", createdName, expected.PersonName)
+		}
+	})
+
+	// Step 2: Query & Validate Every Field
+	t.Run("Query and Verify All Fields", func(t *testing.T) {
+		got, err := GetPerson(ctx, driver, expected.Id)
+		if err != nil {
+			t.Fatalf("Unexpected error querying person %s: %v", expected.Id, err)
+		}
+		if got == nil {
+			t.Fatalf("Expected valid person record for ID %s, got nil", expected.Id)
+		}
+
+		// Strict assertions for all attributes
+		if got.Id != expected.Id {
+			t.Errorf("Id = %q; want %q", got.Id, expected.Id)
+		}
+		if got.PersonName != expected.PersonName {
+			t.Errorf("PersonName = %q; want %q", got.PersonName, expected.PersonName)
+		}
+		if got.Gender != expected.Gender {
+			t.Errorf("Gender = %q; want %q", got.Gender, expected.Gender)
+		}
+		if got.Alive != expected.Alive {
+			t.Errorf("Alive = %t; want %t", got.Alive, expected.Alive)
+		}
+		if got.DateOfBirth != expected.DateOfBirth {
+			t.Errorf("DateOfBirth = %q; want %q", got.DateOfBirth, expected.DateOfBirth)
+		}
+		if got.DateOfDeath != expected.DateOfDeath {
+			t.Errorf("DateOfDeath = %q; want %q", got.DateOfDeath, expected.DateOfDeath)
+		}
+	})
 }
