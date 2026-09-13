@@ -6,7 +6,7 @@ import (
 )
 
 func TestConnect(t *testing.T) {
-	dbUri := "bolt://localhost:7687"
+	dbUri := "bolt://192.168.0.133:7687"
 	ctx, driver := ConnectDatabase(dbUri)
 	defer driver.Close(ctx)
 
