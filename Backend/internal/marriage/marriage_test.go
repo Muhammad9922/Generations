@@ -1,6 +1,7 @@
 package marriage
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -239,8 +240,44 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Only One Marriage Should Have Been Here")
 	}
 
-	if valueMarriages[0].id != id {
+	if valueMarriages[0].Id != id {
 		t.Error("Marriage ID Should Have been the same as returned when it was created")
+	}
+
+	spouseOneFromMarriageID, spouseTwoFromMarriageID, _, err := GetSpouses(ctx, driver, SpouseQueryParams{
+		MarriageId: id,
+	})
+
+	if err != nil {
+		t.Errorf("Error While Getting Spouses: %q", err)
+	}
+
+	if spouseOneFromMarriageID != spouseOneId && spouseOneFromMarriageID != spouseTwoId {
+		t.Errorf("Spouse One Is Not Returned Properly: %v | %v || %v | %v", spouseOneFromMarriageID, spouseTwoFromMarriageID, spouseOneId, spouseTwoId)
+	}
+
+	if spouseTwoFromMarriageID != spouseOneId && spouseTwoFromMarriageID != spouseTwoId {
+		t.Errorf("Spouse Two Is Not Returned Properly: %v | %v || %v | %v", spouseOneFromMarriageID, spouseTwoFromMarriageID, spouseOneId, spouseTwoId)
+	}
+
+	spouseOneFromSpouseOneID, spouseTwoFromSpouseOneId, marriageIDFromSpouseOneId, err := GetSpouses(ctx, driver, SpouseQueryParams{
+		SpouseId: spouseOneId,
+	})
+
+	if err != nil {
+		t.Errorf("Error While Getting Spouses: %q", err)
+	}
+
+	if spouseOneFromSpouseOneID != spouseOneId && spouseTwoFromSpouseOneId != spouseTwoId {
+		t.Errorf("Spouse One Is Not Returned Properly: %v | %v || %v | %v", spouseOneFromSpouseOneID, spouseTwoFromSpouseOneId, spouseOneId, spouseTwoId)
+	}
+
+	if spouseTwoFromSpouseOneId != spouseOneId && spouseTwoFromSpouseOneId != spouseTwoId {
+		t.Errorf("Spouse Two Is Not Returned Properly: %v | %v || %v | %v", spouseOneFromSpouseOneID, spouseTwoFromSpouseOneId, spouseOneId, spouseTwoId)
+	}
+
+	if marriageIDFromSpouseOneId != id {
+		t.Errorf("Marriage ID from Spouse One Isn't Correct %v | %v", marriageIDFromSpouseOneId, id)
 	}
 
 }
@@ -306,4 +343,182 @@ func TestDelete(t *testing.T) {
 	}
 
 	t.Logf("Deleted: %v", deleted)
+}
+
+func TestUpdateMarriage(t *testing.T) {
+	ctx := context.Background()
+	ctx, driver := db.ConnectDatabase("bolt://127.0.0.1:7687")
+	defer driver.Close(ctx)
+
+	// --- Test Fixture Setup ---
+	// Spouse 1: DOB = 11-10-2000, DOD = 11-10-2026
+	_, spouseOneID, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
+		PersonName:  "Spouse One",
+		Alive:       false,
+		Gender:      person.Male,
+		DateOfBirth: "11-10-2000",
+		DateOfDeath: "11-10-2026",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create Spouse One: %v", err)
+	}
+
+	// Spouse 2: DOB = 11-10-2000, DOD = 11-10-2026
+	_, spouseTwoID, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
+		PersonName:  "Spouse Two",
+		Alive:       false,
+		Gender:      person.Female,
+		DateOfBirth: "11-10-2000",
+		DateOfDeath: "11-10-2026",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create Spouse Two: %v", err)
+	}
+
+	// Helper to seed a standard marriage record for testing updates
+	createFixtureMarriage := func(t *testing.T) string {
+		id, err := CreateNewMarriage(ctx, driver, NewMarriage{
+			SpouseOne: spouseOneID,
+			SpouseTwo: spouseTwoID,
+			DateStart: "11-10-2018",
+			DateEnd:   "11-10-2022",
+		})
+		if err != nil || id == "" {
+			t.Fatalf("Failed setting up baseline marriage fixture: %v", err)
+		}
+		return id
+	}
+
+	// --- 1. Successful Update Scenarios ---
+
+	t.Run("Full Update (Start and End Dates)", func(t *testing.T) {
+		marriageID := createFixtureMarriage(t)
+
+		updatePayload := MarriageUpdate{
+			DateStart: person.DateProper("11-10-2019"),
+			DateEnd:   person.DateProper("11-10-2023"),
+		}
+
+		updatedID, err := UpdateMarriage(ctx, driver, marriageID, updatePayload)
+		if err != nil {
+			t.Fatalf("Expected update to succeed, got error: %v", err)
+		}
+		if updatedID != marriageID {
+			t.Errorf("Expected updated ID to be %s, got %s", marriageID, updatedID)
+		}
+
+		// Verify state persistence
+		fetched, err := GetMarriage(ctx, driver, marriageID)
+		if err != nil || fetched == nil || len(*fetched) == 0 {
+			t.Fatalf("Failed fetching updated marriage record: %v", err)
+		}
+
+		record := (*fetched)[0]
+		if record.Start != updatePayload.DateStart {
+			t.Errorf("Expected start date %v, got %v", updatePayload.DateStart, record.Start)
+		}
+		if record.End != updatePayload.DateEnd {
+			t.Errorf("Expected end date %v, got %v", updatePayload.DateEnd, record.End)
+		}
+	})
+
+	t.Run("Partial Update (Start Date Only)", func(t *testing.T) {
+		marriageID := createFixtureMarriage(t)
+
+		updatePayload := MarriageUpdate{
+			DateStart: "11-10-2020",
+		}
+
+		_, err := UpdateMarriage(ctx, driver, marriageID, updatePayload)
+		if err != nil {
+			t.Fatalf("Expected partial start date update to succeed, got: %v", err)
+		}
+
+		fetched, _ := GetMarriage(ctx, driver, marriageID)
+		record := (*fetched)[0]
+
+		if record.Start != "11-10-2020" {
+			t.Errorf("Expected updated start date 11-10-2020, got %v", record.Start)
+		}
+		if record.End != "11-10-2022" { // Must preserve original end date
+			t.Errorf("Expected original end date 11-10-2022 to remain, got %v", record.End)
+		}
+	})
+
+	t.Run("Partial Update (End Date Only)", func(t *testing.T) {
+		marriageID := createFixtureMarriage(t)
+
+		updatePayload := MarriageUpdate{
+			DateEnd: "11-10-2024",
+		}
+
+		_, err := UpdateMarriage(ctx, driver, marriageID, updatePayload)
+		if err != nil {
+			t.Fatalf("Expected partial end date update to succeed, got: %v", err)
+		}
+
+		fetched, _ := GetMarriage(ctx, driver, marriageID)
+		record := (*fetched)[0]
+
+		if record.Start != "11-10-2018" { // Must preserve original start date
+			t.Errorf("Expected original start date 11-10-2018 to remain, got %v", record.Start)
+		}
+		if record.End != "11-10-2024" {
+			t.Errorf("Expected updated end date 11-10-2024, got %v", record.End)
+		}
+	})
+
+	// --- 2. Failure & Validation Scenarios ---
+
+	testCases := []struct {
+		name          string
+		marriageID    func() string
+		updatePayload MarriageUpdate
+	}{
+		{
+			name:       "Invalid Marriage ID",
+			marriageID: func() string { return "invalid-uuid-9999" },
+			updatePayload: MarriageUpdate{
+				DateStart: "11-10-2019",
+			},
+		},
+		{
+			name:       "Malformed Start Date",
+			marriageID: func() string { return createFixtureMarriage(t) },
+			updatePayload: MarriageUpdate{
+				DateStart: "invalid-date-format",
+			},
+		},
+		{
+			name:       "Malformed End Date",
+			marriageID: func() string { return createFixtureMarriage(t) },
+			updatePayload: MarriageUpdate{
+				DateEnd: "32-13-2020",
+			},
+		},
+		{
+			name:       "Marriage Start Before Spouse Birth Date",
+			marriageID: func() string { return createFixtureMarriage(t) },
+			updatePayload: MarriageUpdate{
+				DateStart: "11-10-1995", // Spouse DOB is 11-10-2000
+			},
+		},
+		{
+			name:       "Marriage End After Spouse Death Date",
+			marriageID: func() string { return createFixtureMarriage(t) },
+			updatePayload: MarriageUpdate{
+				DateEnd: "11-10-2030", // Spouse DOD is 11-10-2026
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			id := tc.marriageID()
+			_, err := UpdateMarriage(ctx, driver, id, tc.updatePayload)
+			if err == nil {
+				t.Fatalf("Expected validation error for '%s', but operation succeeded", tc.name)
+			}
+		})
+	}
 }

@@ -33,11 +33,11 @@ func UpdateMarriage(ctx context.Context, driver neo4j.Driver, id string, update 
 	existingMarriage := (*existingRecord)[0]
 
 	if update.DateStart == "" {
-		update.DateStart = existingMarriage.start
+		update.DateStart = existingMarriage.Start
 	}
 
 	if update.DateEnd == "" {
-		update.DateEnd = existingMarriage.end
+		update.DateEnd = existingMarriage.End
 	}
 
 	if update.DateStart != "" && !update.DateStart.IsValid() {

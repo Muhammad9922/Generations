@@ -28,7 +28,7 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 
 	// Fetch Spouse One
 	spouseOne, err := person.GetPerson(ctx, driver, marriage.SpouseOne)
-	if err != nil {
+	if err != nil || spouseOne == nil {
 		return "", fmt.Errorf("failed to get spouse one: %w", err)
 	}
 
