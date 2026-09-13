@@ -3,6 +3,7 @@ package person
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
@@ -71,23 +72,41 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 		p.Id = val
 	}
 	if val, ok := personMap["gender"].(string); ok {
-		p.Gender = Gender(val)
+		p.Gender = Gender(val) // Convert string -> Gender custom type
 	}
 
-	// Process Date of Birth
-	if dateStr, ok := formatDate(personMap["date_of_birth"]); ok {
-		p.DateOfBirth = DateProper(dateStr)
-		if !p.DateOfBirth.IsValid() {
-			return nil, fmt.Errorf("Invalid Date Of Birth: %s", dateStr)
+	if dobRaw, ok := personMap["date_of_birth"]; ok && dobRaw != nil {
+		dobStr := fmt.Sprint(dobRaw) // Converts neo4j.Date / Stringer to string safely
+		dobStrSplit := strings.Split(dobStr, "-")
+		var dobStrFixed string
+		if len(dobStrSplit[0]) > 2 {
+			dobStrFixed = fmt.Sprintf("%v-%v-%v", dobStrSplit[2], dobStrSplit[1], dobStrSplit[0])
+		} else {
+			dobStrFixed = fmt.Sprintf("%v-%v-%v", dobStrSplit[0], dobStrSplit[1], dobStrSplit[2])
 		}
+
+		properDob := DateProper(dobStrFixed)
+		if !properDob.IsValid() {
+			return nil, fmt.Errorf("Invalid Date Of Birth: %s", properDob)
+		}
+		p.DateOfBirth = properDob
 	}
 
-	// Process Date of Death
-	if dateStr, ok := formatDate(personMap["date_of_death"]); ok {
-		p.DateOfDeath = DateProper(dateStr)
-		if !p.DateOfDeath.IsValid() {
-			return nil, fmt.Errorf("Invalid Date Of Death: %s", dateStr)
+	if dodRaw, ok := personMap["date_of_death"]; ok && dodRaw != nil {
+		dodStr := fmt.Sprint(dodRaw) // Converts neo4j.Date / Stringer to string safely
+		dodStrSplit := strings.Split(dodStr, "-")
+		var dodStrFixed string
+
+		if len(dodStrSplit[0]) > 2 {
+			dodStrFixed = fmt.Sprintf("%v-%v-%v", dodStrSplit[2], dodStrSplit[1], dodStrSplit[0])
+		} else {
+			dodStrFixed = fmt.Sprintf("%v-%v-%v", dodStrSplit[0], dodStrSplit[1], dodStrSplit[2])
 		}
+		properDod := DateProper(dodStrFixed)
+		if !properDod.IsValid() {
+			return nil, fmt.Errorf("Invalid Date Of Birth: %s", properDod)
+		}
+		p.DateOfDeath = properDod
 	}
 
 	if val, ok := personMap["alive"].(bool); ok {
