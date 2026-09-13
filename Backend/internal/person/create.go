@@ -3,6 +3,7 @@ package person
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"time"
 	"uuid"
@@ -135,23 +136,44 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 		}
 	}
 
-	var uuid string = func(uid string) string {
-		if uid != "" {
-			return uid
-		} else {
-			return uuid.New().String()
-		}
-	}(params.Id)
+	var uid string
 
-	var neoDateBirthFinal neo4j.Date
-	var neoDateDeathFinal neo4j.Date
+	if params.Id != "" {
+		exists, err := CheckPersonExistence(ctx, driver, PersonQuery{
+			ID: params.Id,
+		})
+
+		if err != nil {
+			return "", "", fmt.Errorf("Error While Check For Existing Users With Same UUID: %q", err)
+		}
+
+		if exists {
+			return "", "", fmt.Errorf("Duplicate UID Provided: %v", params.Id)
+		}
+
+		uid = params.Id
+
+	} else {
+		uid = uuid.New().String()
+	}
+
+	var queryParams map[string]any
+
+	queryParams = map[string]any{
+		"name":   params.PersonName,
+		"gender": params.Gender,
+		"id":     uid,
+		"alive":  params.Alive,
+		"dob":    nil,
+		"dod":    nil,
+	}
 
 	if params.DateOfBirth != "" {
 		neoDate, err := params.DateOfBirth.GetNeoDate()
 		if err != nil {
 			return "", "", err
 		} else {
-			neoDateBirthFinal = *neoDate
+			queryParams["dob"] = *neoDate
 		}
 	}
 
@@ -160,24 +182,21 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 		if err != nil {
 			return "", "", err
 		} else {
-			neoDateDeathFinal = *neoDate
+			queryParams["dod"] = *neoDate
 		}
 	}
 
-	neo4j.ExecuteQuery(
+	_, err := neo4j.ExecuteQuery(
 		ctx,
 		driver,
 		`MERGE (p:Person {name: $name, gender: $gender, date_of_birth: $dob, id: $id, alive: $alive, date_of_death: $dod})`,
-		map[string]any{
-			"name":   params.PersonName,
-			"gender": params.Gender,
-			"dob":    neoDateBirthFinal,
-			"id":     uuid,
-			"alive":  params.Alive,
-			"dod":    neoDateDeathFinal,
-		},
+		queryParams,
 		neo4j.EagerResultTransformer,
 	)
 
-	return params.PersonName, uuid, nil
+	if err != nil {
+		return "", "", err
+	}
+
+	return params.PersonName, uid, nil
 }
