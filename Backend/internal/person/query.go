@@ -4,9 +4,31 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
+
+// Helper function to safely format Neo4j date types or string representations to dd-mm-yyyy
+func formatDate(val any) (string, bool) {
+	if val == nil {
+		return "", false
+	}
+	switch v := val.(type) {
+	case neo4j.Date:
+		return v.Time().Format("02-01-2006"), true
+	case time.Time:
+		return v.Format("02-01-2006"), true
+	case string:
+		// Handles cases where date is already a string in YYYY-MM-DD
+		if t, err := time.Parse("2006-01-02", v); err == nil {
+			return t.Format("02-01-2006"), true
+		}
+		return v, true
+	default:
+		return "", false
+	}
+}
 
 func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson, error) {
 	const query = `

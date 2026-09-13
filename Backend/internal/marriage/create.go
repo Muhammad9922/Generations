@@ -28,7 +28,7 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 
 	// Fetch Spouse One
 	spouseOne, err := person.GetPerson(ctx, driver, marriage.SpouseOne)
-	if err != nil {
+	if err != nil || spouseOne == nil {
 		return "", fmt.Errorf("failed to get spouse one: %w", err)
 	}
 
@@ -46,24 +46,32 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 		return "", fmt.Errorf("date end is invalid: %s", marriage.DateEnd)
 	}
 
-	if marriage.DateStart != "" {
-		// Validate Birth Dates (Birth cannot be AFTER Marriage Start)
-		if spouseOne.DateOfBirth.GetMS() > marriage.DateStart.GetMS() {
-			return "", fmt.Errorf("the birth of spouse one (%v) is after the date of marriage (%v)", spouseOne.DateOfBirth, marriage.DateStart)
-		}
-		if spouseTwo.DateOfBirth.GetMS() > marriage.DateStart.GetMS() {
-			return "", fmt.Errorf("the birth of spouse two (%v) is after the date of marriage (%v)", spouseTwo.DateOfBirth, marriage.DateStart)
-		}
+	// Validate Birth Dates (Birth cannot be AFTER Marriage Start)
+	if spouseOne.DateOfBirth != "" && spouseOne.DateOfBirth.GetMS() == -1 {
+		return "", fmt.Errorf("the birth date of spouse one is invalid: %s", spouseOne.DateOfBirth)
+	}
+	if spouseTwo.DateOfBirth != "" && spouseTwo.DateOfBirth.GetMS() == -1 {
+		return "", fmt.Errorf("the birth date of spouse two is invalid: %s", spouseTwo.DateOfBirth)
+	}
+	if spouseOne.DateOfBirth != "" && marriage.DateStart != "" && spouseOne.DateOfBirth.GetMS() > marriage.DateStart.GetMS() {
+		return "", fmt.Errorf("the birth of spouse one (%v) is after the date of marriage (%v)", spouseOne.DateOfBirth, marriage.DateStart)
+	}
+	if spouseTwo.DateOfBirth != "" && marriage.DateStart != "" && spouseTwo.DateOfBirth.GetMS() > marriage.DateStart.GetMS() {
+		return "", fmt.Errorf("the birth of spouse two (%v) is after the date of marriage (%v)", spouseTwo.DateOfBirth, marriage.DateStart)
 	}
 
 	// Validate Death Dates (Marriage End cannot be AFTER Death)
-	if marriage.DateEnd != "" {
-		if spouseOne.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
-			return "", fmt.Errorf("the end of marriage %v is after the death of spouse one %v", marriage.DateEnd, spouseOne.DateOfDeath)
-		}
-		if spouseTwo.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
-			return "", fmt.Errorf("the end of marriage %v is after the death of spouse two %v", marriage.DateEnd, spouseTwo.DateOfDeath)
-		}
+	if spouseOne.DateOfDeath != "" && spouseOne.DateOfDeath.GetMS() == -1 {
+		return "", fmt.Errorf("the death date of spouse one is invalid: %s", spouseOne.DateOfDeath)
+	}
+	if spouseTwo.DateOfDeath != "" && spouseOne.DateOfDeath.GetMS() == -1 {
+		return "", fmt.Errorf("the death date of spouse two is invalid: %s", spouseTwo.DateOfDeath)
+	}
+	if spouseOne.DateOfDeath != "" && marriage.DateEnd != "" && spouseOne.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
+		return "", fmt.Errorf("the end of marriage %v is after the death of spouse one %v", marriage.DateEnd, spouseOne.DateOfDeath)
+	}
+	if spouseTwo.DateOfDeath != "" && marriage.DateEnd != "" && spouseTwo.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
+		return "", fmt.Errorf("the end of marriage %v is after the death of spouse two %v", marriage.DateEnd, spouseTwo.DateOfDeath)
 	}
 
 	// Both Genders Should Be Provided
