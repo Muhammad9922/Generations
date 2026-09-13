@@ -107,6 +107,11 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 	}
 
 	if params.DateOfDeath != "" {
+
+		if params.Alive {
+			return "", "", errors.New("The Person Can't Both Be Alive And Have A Death Date!")
+		}
+
 		if !params.DateOfDeath.IsValid() {
 			return "", "", errors.New("The Date Of Death Must Be In DD-MM-YYYY Format")
 		}
