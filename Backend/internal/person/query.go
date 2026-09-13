@@ -57,6 +57,9 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 		dobStr := fmt.Sprint(dobRaw) // Converts neo4j.Date / Stringer to string safely
 		dobStrSplit := strings.Split(dobStr, "-")
 		var dobStrFixed string
+		if len(dobStrSplit) < 3 {
+			return nil, fmt.Errorf("Invalid Date Of Birth: %v", dobStr)
+		}
 		if len(dobStrSplit[0]) > 2 {
 			dobStrFixed = fmt.Sprintf("%v-%v-%v", dobStrSplit[2], dobStrSplit[1], dobStrSplit[0])
 		} else {
@@ -75,6 +78,10 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 		dodStrSplit := strings.Split(dodStr, "-")
 		var dodStrFixed string
 
+		if len(dodStrSplit) < 3 {
+			return nil, fmt.Errorf("Invalid Date Of Death: %v", dodStr)
+		}
+
 		if len(dodStrSplit[0]) > 2 {
 			dodStrFixed = fmt.Sprintf("%v-%v-%v", dodStrSplit[2], dodStrSplit[1], dodStrSplit[0])
 		} else {
@@ -82,7 +89,7 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 		}
 		properDod := DateProper(dodStrFixed)
 		if !properDod.IsValid() {
-			return nil, fmt.Errorf("Invalid Date Of Birth: %s", properDod)
+			return nil, fmt.Errorf("Invalid Date Of Death: %s", properDod)
 		}
 		p.DateOfDeath = properDod
 	}
