@@ -37,7 +37,7 @@ func TestCreation(t *testing.T) {
 	exists, err := CheckPersonExistence(ctx, driver, personQuery)
 
 	if exists == false {
-		t.Errorf("New User Still Not Found: %v", err)
+		t.Errorf("New User Not Created: %v", err)
 	}
 }
 
@@ -85,31 +85,23 @@ func TestCreationValidation(t *testing.T) {
 			},
 		},
 		{
-			"No Alive Status",
+			"Invalid Date Of Death",
 			NewPerson{
-				PersonName:  "Person Name 2",
-				DateOfBirth: "2023-11-10",
+				PersonName:  "Person Name 5",
+				DateOfBirth: "11-10-2003",
 				Gender:      "Male",
+				Alive:       false,
+				DateOfDeath: "10-13-2029",
 			},
 		},
 		{
-			"Death Of Death Invalid",
+			"Date Of Death In Past",
 			NewPerson{
-				PersonName:  "",
-				DateOfBirth: "2023-11-10",
+				PersonName:  "Person Name 6",
+				DateOfBirth: "11-10-2003",
 				Gender:      "Male",
-				Alive:       true,
-				DateOfDeath: "10-10-2029",
-			},
-		},
-		{
-			"Death Of Death In Past",
-			NewPerson{
-				PersonName:  "",
-				DateOfBirth: "2023-11-10",
-				Gender:      "Male",
-				Alive:       true,
-				DateOfDeath: "2020-10-10",
+				Alive:       false,
+				DateOfDeath: "11-10-2000",
 			},
 		},
 		{
@@ -336,7 +328,7 @@ func TestUpdatePerson(t *testing.T) {
 	originalGender := Male
 	originalDOB := DateProper("01-01-1990")
 	originalDOD := DateProper("10-10-2003")
-	originalAlive := true
+	originalAlive := false
 
 	_, id, err := CreateNewPerson(ctx, driver, NewPerson{
 		PersonName:  originalName,
@@ -590,7 +582,7 @@ func TestUpdatePersonWithClosedDriver(t *testing.T) {
 
 func TestMoreUpdateData(t *testing.T) {
 	defaultCreation := NewPerson{
-		Alive:       true,
+		Alive:       false,
 		DateOfBirth: "11-10-2000",
 		DateOfDeath: "10-10-2003",
 		PersonName:  "Some Name Here",
@@ -887,4 +879,290 @@ func TestFullAccountPerson(t *testing.T) {
 			t.Errorf("DateOfDeath = %q; want %q", got.DateOfDeath, expected.DateOfDeath)
 		}
 	})
+}
+
+// ============================================================================
+// Regression tests for bugs previously found in the person package.
+// These are intended to FAIL (with a clear message) whenever the underlying
+// bug reappears, and PASS once the bug is fixed.
+// ============================================================================
+
+// TestCreateNoDatesReadsBackEmpty guards against storing a zero-value
+// neo4j.Date (e.g. 0001-01-01) when a person is created without dates.
+func TestCreateNoDatesReadsBackEmpty(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+	_, gotID, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:         id,
+		PersonName: "No Dates Person " + id,
+		Gender:     Male,
+		Alive:      true,
+	})
+	if err != nil {
+		t.Fatalf("failed to create person without dates: %v", err)
+	}
+	if gotID != id {
+		t.Fatalf("expected id %q, got %q", id, gotID)
+	}
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	person, err := GetPerson(ctx, driver, id)
+	if err != nil {
+		t.Fatalf("failed to read person back: %v", err)
+	}
+	if person == nil {
+		t.Fatalf("expected a person record, got nil")
+	}
+	if person.DateOfBirth != "" {
+		t.Errorf("expected empty DateOfBirth for a person created without a DOB, got %q", person.DateOfBirth)
+	}
+	if person.DateOfDeath != "" {
+		t.Errorf("expected empty DateOfDeath for a person created without a DOD, got %q", person.DateOfDeath)
+	}
+}
+
+// TestCreateReturnsErrorOnClosedDriver guards against create.go silently
+// swallowing the error returned by neo4j.ExecuteQuery.
+func TestCreateReturnsErrorOnClosedDriver(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	driver.Close(ctx)
+
+	name, id, err := CreateNewPerson(ctx, driver, NewPerson{
+		PersonName:  "Closed Driver Create",
+		Gender:      Male,
+		DateOfBirth: "01-01-1990",
+		Alive:       true,
+	})
+	if err == nil {
+		t.Errorf("expected an error when creating with a closed driver, got nil (name=%q id=%q)", name, id)
+	}
+}
+
+// TestCreateWithSameIDDoesNotDuplicate guards against the MERGE statement
+// matching on every property, which creates duplicate nodes for the same id.
+func TestCreateWithSameIDDoesNotDuplicate(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+
+	if _, gotID, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Duplicate One " + id,
+		Gender:      Male,
+		DateOfBirth: "01-01-1990",
+		Alive:       false,
+		DateOfDeath: "01-01-2000",
+	}); err != nil {
+		t.Fatalf("failed to create first person: %v", err)
+	} else if gotID != id {
+		t.Fatalf("expected id %q, got %q", id, gotID)
+	}
+
+	// Create a second person with the SAME id but different data.
+	_, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Duplicate Two " + id,
+		Gender:      Female,
+		DateOfBirth: "02-02-1992",
+		Alive:       true,
+	})
+
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	result, err := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person {id: $id}) RETURN count(p) AS cnt`,
+		map[string]any{"id": id},
+		neo4j.EagerResultTransformer,
+	)
+	if err != nil {
+		t.Fatalf("failed to count nodes with id %q: %v", id, err)
+	}
+	if len(result.Records) == 0 {
+		t.Fatalf("no count record returned for id %q", id)
+	}
+	rawCnt, found := result.Records[0].Get("cnt")
+	if !found {
+		t.Fatalf("count field missing for id %q", id)
+	}
+	cnt, ok := rawCnt.(int64)
+	if !ok {
+		t.Fatalf("unexpected type for count: %T", rawCnt)
+	}
+	if cnt != 1 {
+		t.Errorf("expected exactly 1 node for id %q, found %d (duplicate node created by MERGE)", id, cnt)
+	}
+}
+
+// TestCreateRejectsAliveWithDeathDate guards the invariant that a person
+// cannot be both alive and have a date of death.
+func TestCreateRejectsAliveWithDeathDate(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	_, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		PersonName:  "Alive With Death Date",
+		Gender:      Male,
+		DateOfBirth: "01-01-1990",
+		Alive:       true,
+		DateOfDeath: "01-01-2000",
+	})
+	if err == nil {
+		t.Errorf("expected an error when creating a person that is both alive and has a death date")
+	}
+}
+
+// TestCreateRejectsImpossibleDates guards against regex-only date validation
+// that accepts non-existent dates such as 31 February.
+func TestCreateRejectsImpossibleDates(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	_, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		PersonName:  "Impossible Date",
+		Gender:      Male,
+		DateOfBirth: "31-02-2023",
+		Alive:       true,
+	})
+	if err == nil {
+		t.Errorf("expected an error for impossible date of birth 31-02-2023")
+	}
+}
+
+// TestUpdatePre1970Dates guards against GetMS returning negative Unix millis
+// for pre-1970 dates, which the update code then misinterprets as invalid.
+func TestUpdatePre1970Dates(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+	if _, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Pre 1970 " + id,
+		Gender:      Male,
+		DateOfBirth: "01-01-1900",
+		Alive:       false,
+		DateOfDeath: "01-01-1950",
+	}); err != nil {
+		t.Fatalf("failed to create pre-1970 person: %v", err)
+	}
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	newDOB := DateProper("02-02-1901")
+	if _, updated, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfBirth: &newDOB}); err != nil {
+		t.Errorf("expected to be able to update a pre-1970 date, got error: %v", err)
+	} else if !updated {
+		t.Errorf("expected update to be reported as successful")
+	}
+}
+
+// TestUpdateStoresDatesAsNeo4jDate guards against update.go persisting dates as
+// strings instead of real neo4j.Date values (inconsistent with create.go).
+func TestUpdateStoresDatesAsNeo4jDate(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+	if _, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Date Type " + id,
+		Gender:      Male,
+		DateOfBirth: "01-01-1990",
+		Alive:       false,
+		DateOfDeath: "01-01-2000",
+	}); err != nil {
+		t.Fatalf("failed to create person: %v", err)
+	}
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	before := readPersonProperties(t, ctx, driver, id)
+	if _, ok := before["date_of_birth"].(neo4j.Date); !ok {
+		t.Errorf("date_of_birth should be neo4j.Date after create, got %T", before["date_of_birth"])
+	}
+
+	newDOB := DateProper("02-02-1991")
+	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfBirth: &newDOB}); err != nil {
+		t.Fatalf("failed to update date of birth: %v", err)
+	}
+
+	after := readPersonProperties(t, ctx, driver, id)
+	if _, ok := after["date_of_birth"].(neo4j.Date); !ok {
+		t.Errorf("date_of_birth should remain neo4j.Date after update, got %T (value %v)", after["date_of_birth"], after["date_of_birth"])
+	}
+}
+
+// TestGetPersonMalformedDeathDateError guards against the copy-paste bug in
+// query.go that reports an invalid date of death as "Invalid Date Of Birth".
+func TestGetPersonMalformedDeathDateError(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+	if _, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Bad DOD " + id,
+		Gender:      Male,
+		DateOfBirth: "01-01-1990",
+		Alive:       false,
+		DateOfDeath: "01-01-2000",
+	}); err != nil {
+		t.Fatalf("failed to create person: %v", err)
+	}
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	// Corrupt the stored death date directly.
+	if _, err := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person {id: $id}) SET p.date_of_death = $dod`,
+		map[string]any{"id": id, "dod": "9999-99-99"},
+		neo4j.EagerResultTransformer,
+	); err != nil {
+		t.Fatalf("failed to corrupt stored death date: %v", err)
+	}
+
+	_, err := GetPerson(ctx, driver, id)
+	if err == nil {
+		t.Fatalf("expected GetPerson to return an error for a malformed death date")
+	}
+	if !strings.Contains(err.Error(), "Death") {
+		t.Errorf("expected error message to reference the date of death, got: %v", err)
+	}
+}
+
+// TestGetPersonEmptyDateDoesNotPanic guards against query.go panicking with an
+// index-out-of-range error when a stored date is an empty string.
+func TestGetPersonEmptyDateDoesNotPanic(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+	if _, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Empty Date " + id,
+		Gender:      Male,
+		DateOfBirth: "01-01-1990",
+		Alive:       true,
+	}); err != nil {
+		t.Fatalf("failed to create person: %v", err)
+	}
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	// Store an empty-string birth date directly (malformed state).
+	if _, err := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person {id: $id}) SET p.date_of_birth = $dob`,
+		map[string]any{"id": id, "dob": ""},
+		neo4j.EagerResultTransformer,
+	); err != nil {
+		t.Fatalf("failed to corrupt stored birth date: %v", err)
+	}
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("GetPerson panicked on empty-string date: %v", r)
+			}
+		}()
+		_, _ = GetPerson(ctx, driver, id)
+	}()
 }
