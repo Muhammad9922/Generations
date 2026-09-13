@@ -10,7 +10,7 @@ import (
 )
 
 func TestCreation(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://127.0.0.1:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	_, spouseOneId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
@@ -50,7 +50,7 @@ func TestCreation(t *testing.T) {
 }
 
 func TestCreationWithParams(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://127.0.0.1:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 
 	spouseOneName, personOneID, personOneErr := person.CreateNewPerson(ctx, driver, person.NewPerson{
 		PersonName:  "Person One",
@@ -191,7 +191,7 @@ func TestCreationWithParams(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://127.0.0.1:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	_, spouseOneId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
@@ -283,7 +283,7 @@ func TestQuery(t *testing.T) {
 }
 
 func TestQueryAllMarriages(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://127.0.0.1:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 	marriagesPointer, err := GetAllMarriages(ctx, driver)
 	marriages := *marriagesPointer
@@ -300,7 +300,7 @@ func TestQueryAllMarriages(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://127.0.0.1:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	_, maleId, maleErr := person.CreateNewPerson(ctx, driver, person.NewPerson{

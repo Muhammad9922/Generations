@@ -12,7 +12,7 @@ import (
 )
 
 func TestCreation(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 	personName, _, err := CreateNewPerson(ctx, driver, NewPerson{
 		PersonName:  "Muhammad",
@@ -42,7 +42,7 @@ func TestCreation(t *testing.T) {
 }
 
 func TestCreationValidation(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	tests := []struct {
@@ -140,7 +140,7 @@ func TestCreationWithUID(t *testing.T) {
 		DateOfBirth: "20-10-2000",
 	}
 
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	_, id, _ := CreateNewPerson(ctx, driver, newPerson)
@@ -151,7 +151,7 @@ func TestCreationWithUID(t *testing.T) {
 }
 
 func TestCheckingSimpleExistance(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 	person := PersonQuery{
 		ID:   "Anything",
@@ -165,7 +165,7 @@ func TestCheckingSimpleExistance(t *testing.T) {
 }
 
 func TestCheckSimpleExistanceWithClosedDriver(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	driver.Close(ctx)
 
 	person := PersonQuery{
@@ -181,7 +181,7 @@ func TestCheckSimpleExistanceWithClosedDriver(t *testing.T) {
 }
 
 func TestCheckSameNameUsers(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx) // 1. Defer closure so driver stays open during tests
 
 	users := []NewPerson{
@@ -228,7 +228,7 @@ func TestCheckSameNameUsers(t *testing.T) {
 }
 
 func TestDeleteUser(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 
 	var id string
 
@@ -327,7 +327,7 @@ func readPersonProperties(t *testing.T, ctx context.Context, driver neo4j.Driver
 }
 
 func TestUpdatePerson(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	// A UUID-backed name ensures this test does not collide with data left
@@ -571,7 +571,7 @@ func TestUpdatePerson(t *testing.T) {
 }
 
 func TestUpdatePersonWithClosedDriver(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	driver.Close(ctx)
 
 	newName := "Closed Driver Name"
@@ -700,7 +700,7 @@ func TestMoreUpdateData(t *testing.T) {
 		},
 	}
 
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	for _, test := range tests {
@@ -748,7 +748,7 @@ func TestMoreUpdateData(t *testing.T) {
 }
 
 func TestPersonQuery(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 
 	tests := []struct {
 		name   string
@@ -830,7 +830,7 @@ func TestPersonQuery(t *testing.T) {
 }
 
 func TestFullAccountPerson(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://localhost:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	// Setup input with all fields populated
