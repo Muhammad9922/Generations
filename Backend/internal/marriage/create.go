@@ -112,17 +112,31 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 		return "", fmt.Errorf("Date Start Is Invalid: %v | %v", marriage.DateStart, marriageStart)
 	}
 
+	queryParams := map[string]any{
+		"mid":   marriage.ID,
+		"said":  spouseOne.Id,
+		"sbid":  spouseTwo.Id,
+		"start": nil,
+		"end":   nil,
+	}
+
+	if marriageStart != nil {
+		queryParams["start"] = *marriageStart
+	} else if marriage.DateStart != "" {
+		return "", fmt.Errorf("Date Of Start Was Provided But Not Added %v | %v", marriageStart, marriage.DateStart)
+	}
+
+	if marriageEnd != nil {
+		queryParams["end"] = *marriageEnd
+	} else if marriage.DateEnd != "" {
+		return "", fmt.Errorf("Date Of End Was Provided But Not Added %v | %v", marriageEnd, marriage.DateEnd)
+	}
+
 	result, err := neo4j.ExecuteQuery(
 		ctx,
 		driver,
 		query,
-		map[string]any{
-			"mid":   marriage.ID,
-			"start": *marriageStart,
-			"end":   *marriageEnd,
-			"said":  spouseOne.Id,
-			"sbid":  spouseTwo.Id,
-		},
+		queryParams,
 		neo4j.EagerResultTransformer,
 	)
 

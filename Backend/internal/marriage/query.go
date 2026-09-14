@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Muhammad9922/Generations/internal/person"
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
@@ -15,9 +16,9 @@ type QueryResponse struct {
 	End   person.DateProper
 }
 
-func GetMarriage(ctx context.Context, driver neo4j.Driver, id string) ([]QueryResponse, error) {
+func GetMarriageFromMarriageId(ctx context.Context, driver neo4j.Driver, id string) ([]QueryResponse, error) {
 	const query = `
-	MATCH (p:Person {id: $id})-->(m: Marriage)
+	MATCH (m: Marriage {id: $id})
 	RETURN m.start AS start, m.end AS end, m.id AS id
 	`
 
@@ -32,7 +33,7 @@ func GetMarriage(ctx context.Context, driver neo4j.Driver, id string) ([]QueryRe
 	records := result.Records
 	responses := make([]QueryResponse, 0, len(records))
 
-	if len(responses) == 0 {
+	if len(records) == 0 {
 		return nil, fmt.Errorf("No Record Found: %v || ID: %v", responses, id)
 	}
 
@@ -51,20 +52,34 @@ func GetMarriage(ctx context.Context, driver neo4j.Driver, id string) ([]QueryRe
 		thisResponse.Id = marriageID
 
 		// Safely handle optional start date
-		if startDateRaw, found := record.Get("start"); found && startDateRaw != nil {
-			if startDate, ok := startDateRaw.(string); ok {
-				thisResponse.Start = person.DateProper(startDate)
+
+		if dateStart, found := record.Get("start"); found && dateStart != nil {
+			dateStartString := fmt.Sprintf("%s", dateStart)
+			dateStartSplit := strings.Split(dateStartString, "-")
+			if len(dateStartSplit) != 3 {
+				return nil, fmt.Errorf("invalid marriage start date %v | raw record is: %v", dateStartString, record.AsMap())
+			}
+
+			if len(dateStartSplit[0]) > 2 {
+				thisResponse.Start = person.DateProper(fmt.Sprintf("%v-%v-%v", dateStartSplit[2], dateStartSplit[1], dateStartSplit[0]))
 			} else {
-				return nil, fmt.Errorf("start date expected string, got %T (%v)", startDateRaw, startDateRaw)
+				thisResponse.Start = person.DateProper(fmt.Sprintf("%v-%v-%v", dateStartSplit[0], dateStartSplit[1], dateStartSplit[2]))
 			}
 		}
 
 		// Safely handle optional end date
-		if endDateRaw, found := record.Get("end"); found && endDateRaw != nil {
-			if endDate, ok := endDateRaw.(string); ok {
-				thisResponse.End = person.DateProper(endDate)
+
+		if endDate, found := record.Get("end"); found && endDate != nil {
+			dateEndString := fmt.Sprintf("%s", endDate)
+			dateEndSplit := strings.Split(dateEndString, "-")
+			if len(dateEndSplit) != 3 {
+				return nil, fmt.Errorf("invalid marriage end date: %v", dateEndString)
+			}
+
+			if len(dateEndSplit[0]) > 2 {
+				thisResponse.End = person.DateProper(fmt.Sprintf("%v-%v-%v", dateEndSplit[2], dateEndSplit[1], dateEndSplit[0]))
 			} else {
-				return nil, fmt.Errorf("end date expected string, got %T (%v)", endDateRaw, endDateRaw)
+				thisResponse.End = person.DateProper(fmt.Sprintf("%v-%v-%v", dateEndSplit[0], dateEndSplit[1], dateEndSplit[2]))
 			}
 		}
 
