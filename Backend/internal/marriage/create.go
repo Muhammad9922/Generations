@@ -96,7 +96,7 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 	const query = `
 		MATCH (spa:Person {id: $said})
 		MATCH (spb:Person {id: $sbid})
-		CREATE (spa)-[:married]->(m:Marriage {id: $mid, start: $start, end: $end})<-[:married]-(spb)
+		CREATE (spa)-[:MARRIED]->(m:Marriage {id: $mid, start: $start, end: $end})<-[:MARRIED]-(spb)
 	`
 
 	marriageStart, err := marriage.DateStart.GetNeoDate()

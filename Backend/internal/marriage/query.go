@@ -156,7 +156,7 @@ type SpouseQueryParams struct {
 func getSpousesFromMarriageId(ctx context.Context, driver neo4j.Driver, id string) (string, string, string, error) {
 
 	const query = `
-		MATCH (p:Person)-[:married]->(m:Marriage {id: $id})
+		MATCH (p:Person)-[:MARRIED]->(m:Marriage {id: $id})
 		RETURN p.id as id
 		`
 
@@ -213,7 +213,7 @@ func GetSpouses(ctx context.Context, driver neo4j.Driver, params SpouseQueryPara
 		return getSpousesFromMarriageId(ctx, driver, params.MarriageId)
 	} else if params.SpouseId != "" {
 		const query = `
-		MATCH (p:Person {id: $id})-[:married]->(m:Marriage)
+		MATCH (p:Person {id: $id})-[:MARRIED]->(m:Marriage)
 		return m.id as id
 		`
 
