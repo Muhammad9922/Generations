@@ -14,9 +14,13 @@ type MarriageUpdate struct {
 	DateEnd   person.DateProper
 }
 
-func UpdateMarriage(ctx context.Context, driver neo4j.Driver, id string, update MarriageUpdate) (string, error) {
+func UpdateMarriageDates(ctx context.Context, driver neo4j.Driver, id string, update MarriageUpdate) (string, error) {
 
-	existingRecord, err := GetMarriage(ctx, driver, id)
+	if update.DateEnd == "" && update.DateStart == "" {
+		return "", fmt.Errorf("No Updates Were Requested: %v", update)
+	}
+
+	existingRecord, err := GetMarriageFromMarriageId(ctx, driver, id)
 
 	if err != nil {
 		return "", err
@@ -54,6 +58,98 @@ func UpdateMarriage(ctx context.Context, driver neo4j.Driver, id string, update 
 		if startOK && endOK && start.After(end) {
 			return "", fmt.Errorf("Date Start %v Is After Date End %v", update.DateStart, update.DateEnd)
 		}
+	}
+
+	spouseOneId, spouseTwoId, marriageId, err := getSpousesFromMarriageId(ctx, driver, id)
+
+	if err != nil {
+		return "", err
+	}
+
+	if marriageId != id {
+		return "", errors.New("Somehow the new marriage id is different than the one provided")
+	}
+
+	spouseOne, err := person.GetPerson(ctx, driver, spouseOneId)
+
+	if err != nil {
+		return "", fmt.Errorf("Error Getting Spouse One: %v", err)
+	}
+
+	spouseTwo, err := person.GetPerson(ctx, driver, spouseTwoId)
+
+	if err != nil {
+		return "", fmt.Errorf("Error Getting Spouse Two: %q", err)
+	}
+
+	// 1. Validate that start date is not after end date
+	if update.DateEnd.IsValid() && update.DateStart > update.DateEnd {
+		return "", fmt.Errorf("marriage start date (%v) cannot be after end date (%v)", update.DateStart, update.DateEnd)
+	}
+
+	// Helper to validate a spouse's timeline against marriage dates
+	validateSpouseDates := func(spouseLabel string, dob, dod person.DateProper) error {
+		// Birth validation
+		if update.DateStart < dob {
+			return fmt.Errorf("marriage start date (%v) cannot be before %s's birth date (%v)", update.DateStart, spouseLabel, dob)
+		}
+		if update.DateEnd.IsValid() && update.DateEnd < dob {
+			return fmt.Errorf("marriage end date (%v) cannot be before %s's birth date (%v)", update.DateEnd, spouseLabel, dob)
+		}
+
+		// Death validation (only evaluate if DateOfDeath is set / non-zero)
+		if dod.IsValid() {
+			if update.DateStart > dod {
+				return fmt.Errorf("marriage start date (%v) cannot be after %s's death date (%v)", update.DateStart, spouseLabel, dod)
+			}
+			if update.DateEnd != "" && update.DateEnd > dod {
+				return fmt.Errorf("marriage end date (%v) cannot be after %s's death date (%v)", update.DateEnd, spouseLabel, dod)
+			}
+		}
+		return nil
+	}
+
+	if err := validateSpouseDates("spouse one", spouseOne.DateOfBirth, spouseOne.DateOfDeath); err != nil {
+		return "", err
+	}
+
+	if err := validateSpouseDates("spouse two", spouseTwo.DateOfBirth, spouseTwo.DateOfDeath); err != nil {
+		return "", err
+	}
+
+	query := `
+	MATCH (m:Marriage {id: $id})
+	SET m.start = $start, m.end = $end
+	`
+
+	params := map[string]any{
+		"id":    id,
+		"start": nil,
+		"end":   nil,
+	}
+
+	if update.DateStart != "" {
+		params["start"] = update.DateStart
+	}
+
+	if update.DateEnd != "" {
+		params["end"] = update.DateEnd
+	}
+
+	records, err := neo4j.ExecuteQuery(
+		ctx,
+		driver,
+		query,
+		params,
+		neo4j.EagerResultTransformer,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	if !records.Summary.Counters().ContainsUpdates() {
+		return "", fmt.Errorf("No Updates Were Done Even When Requested")
 	}
 
 	return id, nil
