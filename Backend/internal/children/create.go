@@ -35,7 +35,7 @@ func CreateNewChildren(ctx context.Context, driver neo4j.Driver, marriageId stri
 	query := `
 		MATCH (m:Marriage {id: $mid})
 		MATCH (c:Person {id: $cid})
-		MERGE (c)-[:PRODUCED]->(m)
+		MERGE (c)<-[:PRODUCED]-(m)
 	`
 
 	params := map[string]any{
