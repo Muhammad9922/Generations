@@ -46,31 +46,39 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 		return "", fmt.Errorf("date end is invalid: %s", marriage.DateEnd)
 	}
 
+	// Parse every date that is present; empty dates stay as the zero time.
+	spouseOneBirth, spouseOneBirthOK := spouseOne.DateOfBirth.ParseTime()
+	spouseTwoBirth, spouseTwoBirthOK := spouseTwo.DateOfBirth.ParseTime()
+	spouseOneDeath, spouseOneDeathOK := spouseOne.DateOfDeath.ParseTime()
+	spouseTwoDeath, spouseTwoDeathOK := spouseTwo.DateOfDeath.ParseTime()
+	dateStart, dateStartOK := marriage.DateStart.ParseTime()
+	dateEnd, dateEndOK := marriage.DateEnd.ParseTime()
+
 	// Validate Birth Dates (Birth cannot be AFTER Marriage Start)
-	if spouseOne.DateOfBirth != "" && spouseOne.DateOfBirth.GetMS() == -1 {
+	if spouseOne.DateOfBirth != "" && !spouseOneBirthOK {
 		return "", fmt.Errorf("the birth date of spouse one is invalid: %s", spouseOne.DateOfBirth)
 	}
-	if spouseTwo.DateOfBirth != "" && spouseTwo.DateOfBirth.GetMS() == -1 {
+	if spouseTwo.DateOfBirth != "" && !spouseTwoBirthOK {
 		return "", fmt.Errorf("the birth date of spouse two is invalid: %s", spouseTwo.DateOfBirth)
 	}
-	if spouseOne.DateOfBirth != "" && marriage.DateStart != "" && spouseOne.DateOfBirth.GetMS() > marriage.DateStart.GetMS() {
+	if spouseOne.DateOfBirth != "" && marriage.DateStart != "" && dateStartOK && spouseOneBirth.After(dateStart) {
 		return "", fmt.Errorf("the birth of spouse one (%v) is after the date of marriage (%v)", spouseOne.DateOfBirth, marriage.DateStart)
 	}
-	if spouseTwo.DateOfBirth != "" && marriage.DateStart != "" && spouseTwo.DateOfBirth.GetMS() > marriage.DateStart.GetMS() {
+	if spouseTwo.DateOfBirth != "" && marriage.DateStart != "" && dateStartOK && spouseTwoBirth.After(dateStart) {
 		return "", fmt.Errorf("the birth of spouse two (%v) is after the date of marriage (%v)", spouseTwo.DateOfBirth, marriage.DateStart)
 	}
 
 	// Validate Death Dates (Marriage End cannot be AFTER Death)
-	if spouseOne.DateOfDeath != "" && spouseOne.DateOfDeath.GetMS() == -1 {
+	if spouseOne.DateOfDeath != "" && !spouseOneDeathOK {
 		return "", fmt.Errorf("the death date of spouse one is invalid: %s", spouseOne.DateOfDeath)
 	}
-	if spouseTwo.DateOfDeath != "" && spouseOne.DateOfDeath.GetMS() == -1 {
+	if spouseTwo.DateOfDeath != "" && !spouseTwoDeathOK {
 		return "", fmt.Errorf("the death date of spouse two is invalid: %s", spouseTwo.DateOfDeath)
 	}
-	if spouseOne.DateOfDeath != "" && marriage.DateEnd != "" && spouseOne.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
+	if spouseOne.DateOfDeath != "" && marriage.DateEnd != "" && dateEndOK && spouseOneDeath.Before(dateEnd) {
 		return "", fmt.Errorf("the end of marriage %v is after the death of spouse one %v", marriage.DateEnd, spouseOne.DateOfDeath)
 	}
-	if spouseTwo.DateOfDeath != "" && marriage.DateEnd != "" && spouseTwo.DateOfDeath.GetMS() < marriage.DateEnd.GetMS() {
+	if spouseTwo.DateOfDeath != "" && marriage.DateEnd != "" && dateEndOK && spouseTwoDeath.Before(dateEnd) {
 		return "", fmt.Errorf("the end of marriage %v is after the death of spouse two %v", marriage.DateEnd, spouseTwo.DateOfDeath)
 	}
 
@@ -92,7 +100,17 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 	`
 
 	marriageStart, err := marriage.DateStart.GetNeoDate()
+	if err != nil {
+		return "", err
+	}
 	marriageEnd, err := marriage.DateEnd.GetNeoDate()
+	if err != nil {
+		return "", err
+	}
+
+	if marriage.DateStart != "" && marriageStart == nil {
+		return "", fmt.Errorf("Date Start Is Invalid: %v | %v", marriage.DateStart, marriageStart)
+	}
 
 	result, err := neo4j.ExecuteQuery(
 		ctx,
@@ -100,8 +118,8 @@ func CreateNewMarriage(ctx context.Context, driver neo4j.Driver, marriage NewMar
 		query,
 		map[string]any{
 			"mid":   marriage.ID,
-			"start": marriageStart,
-			"end":   marriageEnd,
+			"start": *marriageStart,
+			"end":   *marriageEnd,
 			"said":  spouseOne.Id,
 			"sbid":  spouseTwo.Id,
 		},

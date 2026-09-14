@@ -26,11 +26,11 @@ func UpdateMarriage(ctx context.Context, driver neo4j.Driver, id string, update 
 		return "", errors.New("No Existing Record Found")
 	}
 
-	if len(*existingRecord) != 1 {
-		return "", errors.New("Unable To Properly Query Existing Marriage")
+	if len(existingRecord) != 1 {
+		return "", fmt.Errorf("Unable To Properly Query Existing Marriage: %v", existingRecord)
 	}
 
-	existingMarriage := (*existingRecord)[0]
+	existingMarriage := (existingRecord)[0]
 
 	if update.DateStart == "" {
 		update.DateStart = existingMarriage.Start
@@ -48,8 +48,12 @@ func UpdateMarriage(ctx context.Context, driver neo4j.Driver, id string, update 
 		return "", fmt.Errorf("New DateEnd Is Invalid %v", update.DateEnd)
 	}
 
-	if update.DateStart != "" && update.DateEnd != "" && update.DateStart.GetMS() > update.DateEnd.GetMS() {
-		return "", fmt.Errorf("Date Start %v Is After Date End %v", update.DateStart, update.DateEnd)
+	if update.DateStart != "" && update.DateEnd != "" {
+		start, startOK := update.DateStart.ParseTime()
+		end, endOK := update.DateEnd.ParseTime()
+		if startOK && endOK && start.After(end) {
+			return "", fmt.Errorf("Date Start %v Is After Date End %v", update.DateStart, update.DateEnd)
+		}
 	}
 
 	return id, nil

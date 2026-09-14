@@ -3,6 +3,7 @@ package marriage
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Muhammad9922/Generations/internal/person"
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
@@ -14,7 +15,7 @@ type QueryResponse struct {
 	End   person.DateProper
 }
 
-func GetMarriage(ctx context.Context, driver neo4j.Driver, id string) (*[]QueryResponse, error) {
+func GetMarriage(ctx context.Context, driver neo4j.Driver, id string) ([]QueryResponse, error) {
 	const query = `
 	MATCH (p:Person {id: $id})-->(m: Marriage)
 	RETURN m.start AS start, m.end AS end, m.id AS id
@@ -28,44 +29,49 @@ func GetMarriage(ctx context.Context, driver neo4j.Driver, id string) (*[]QueryR
 		return nil, err
 	}
 
-	var response []QueryResponse
-
 	records := result.Records
+	responses := make([]QueryResponse, 0, len(records))
+
+	if len(responses) == 0 {
+		return nil, fmt.Errorf("No Record Found: %v || ID: %v", responses, id)
+	}
 
 	for _, record := range records {
-		startDateRaw, startDateFound := record.Get("start")
-		endDateRaw, endDateFound := record.Get("end")
-		idRaw, idFound := record.Get("id")
+		idRaw, found := record.Get("id")
+		if !found || idRaw == nil {
+			continue
+		}
 
-		if !idFound {
+		marriageID, ok := idRaw.(string)
+		if !ok {
 			continue
 		}
 
 		var thisResponse QueryResponse
+		thisResponse.Id = marriageID
 
-		id, ok := idRaw.(string)
-		if ok {
-			thisResponse.Id = id
-		}
-
-		if startDateFound {
-			startDate, ok := startDateRaw.(string)
-			if ok {
+		// Safely handle optional start date
+		if startDateRaw, found := record.Get("start"); found && startDateRaw != nil {
+			if startDate, ok := startDateRaw.(string); ok {
 				thisResponse.Start = person.DateProper(startDate)
+			} else {
+				return nil, fmt.Errorf("start date expected string, got %T (%v)", startDateRaw, startDateRaw)
 			}
 		}
 
-		if endDateFound {
-			endDate, ok := endDateRaw.(string)
-			if ok {
+		// Safely handle optional end date
+		if endDateRaw, found := record.Get("end"); found && endDateRaw != nil {
+			if endDate, ok := endDateRaw.(string); ok {
 				thisResponse.End = person.DateProper(endDate)
+			} else {
+				return nil, fmt.Errorf("end date expected string, got %T (%v)", endDateRaw, endDateRaw)
 			}
 		}
 
-		response = append(response, thisResponse)
+		responses = append(responses, thisResponse)
 	}
 
-	return &response, nil
+	return responses, nil
 }
 
 func GetAllMarriages(ctx context.Context, driver neo4j.Driver) (*[]QueryResponse, error) {

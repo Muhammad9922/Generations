@@ -55,7 +55,7 @@ func TestCreationWithParams(t *testing.T) {
 	spouseOneName, personOneID, personOneErr := person.CreateNewPerson(ctx, driver, person.NewPerson{
 		PersonName:  "Person One",
 		Gender:      person.Male,
-		Alive:       true,
+		Alive:       false,
 		DateOfBirth: "10-10-2000",
 		DateOfDeath: "10-10-2020",
 	})
@@ -230,7 +230,7 @@ func TestQuery(t *testing.T) {
 	}
 
 	marriages, err := GetMarriage(ctx, driver, spouseOneId)
-	valueMarriages := *marriages
+	valueMarriages := marriages
 
 	if err != nil {
 		t.Fatalf("Error Getting Marriages: %v", err)
@@ -347,7 +347,7 @@ func TestDelete(t *testing.T) {
 
 func TestUpdateMarriage(t *testing.T) {
 	ctx := context.Background()
-	ctx, driver := db.ConnectDatabase("bolt://127.0.0.1:7687")
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
 
 	// --- Test Fixture Setup ---
@@ -399,6 +399,8 @@ func TestUpdateMarriage(t *testing.T) {
 			DateEnd:   person.DateProper("11-10-2023"),
 		}
 
+		t.Logf("ID For Marrige: %v | Spouse One: %v -- Spouse Two: %v", marriageID, spouseOneID, spouseTwoID)
+
 		updatedID, err := UpdateMarriage(ctx, driver, marriageID, updatePayload)
 		if err != nil {
 			t.Fatalf("Expected update to succeed, got error: %v", err)
@@ -409,11 +411,11 @@ func TestUpdateMarriage(t *testing.T) {
 
 		// Verify state persistence
 		fetched, err := GetMarriage(ctx, driver, marriageID)
-		if err != nil || fetched == nil || len(*fetched) == 0 {
+		if err != nil || fetched == nil || len(fetched) == 0 {
 			t.Fatalf("Failed fetching updated marriage record: %v", err)
 		}
 
-		record := (*fetched)[0]
+		record := (fetched)[0]
 		if record.Start != updatePayload.DateStart {
 			t.Errorf("Expected start date %v, got %v", updatePayload.DateStart, record.Start)
 		}
@@ -435,7 +437,7 @@ func TestUpdateMarriage(t *testing.T) {
 		}
 
 		fetched, _ := GetMarriage(ctx, driver, marriageID)
-		record := (*fetched)[0]
+		record := (fetched)[0]
 
 		if record.Start != "11-10-2020" {
 			t.Errorf("Expected updated start date 11-10-2020, got %v", record.Start)
@@ -458,7 +460,7 @@ func TestUpdateMarriage(t *testing.T) {
 		}
 
 		fetched, _ := GetMarriage(ctx, driver, marriageID)
-		record := (*fetched)[0]
+		record := (fetched)[0]
 
 		if record.Start != "11-10-2018" { // Must preserve original start date
 			t.Errorf("Expected original start date 11-10-2018 to remain, got %v", record.Start)
