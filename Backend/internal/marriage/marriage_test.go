@@ -22,7 +22,7 @@ func TestCreation(t *testing.T) {
 	})
 
 	if err != nil {
-		t.Fatalf("Error Creating Spouse One")
+		t.Fatalf("Error Creating Spouse One %q", err)
 	}
 
 	_, spouseTwoId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
@@ -34,7 +34,7 @@ func TestCreation(t *testing.T) {
 	})
 
 	if err != nil {
-		t.Fatalf("Error Creation Spouse Two")
+		t.Fatalf("Error Creation Spouse Two %q", err)
 	}
 
 	id, err := CreateNewMarriage(ctx, driver, NewMarriage{
@@ -44,8 +44,12 @@ func TestCreation(t *testing.T) {
 		DateEnd:   "11-10-2024",
 	})
 
-	if err != nil || id == "" {
+	if err != nil {
 		t.Fatalf("Error Creating New Marriage: %v", err)
+	}
+
+	if id == "" {
+		t.Fatalf("No Marriage Was Created Without Errors")
 	}
 }
 
@@ -229,7 +233,7 @@ func TestQuery(t *testing.T) {
 		t.Fatalf("Error Creating New Marriage: %v", err)
 	}
 
-	marriages, err := GetMarriage(ctx, driver, spouseOneId)
+	marriages, err := GetMarriageFromMarriageId(ctx, driver, id)
 	valueMarriages := marriages
 
 	if err != nil {
@@ -401,7 +405,7 @@ func TestUpdateMarriage(t *testing.T) {
 
 		t.Logf("ID For Marrige: %v | Spouse One: %v -- Spouse Two: %v", marriageID, spouseOneID, spouseTwoID)
 
-		updatedID, err := UpdateMarriage(ctx, driver, marriageID, updatePayload)
+		updatedID, err := UpdateMarriageDates(ctx, driver, marriageID, updatePayload)
 		if err != nil {
 			t.Fatalf("Expected update to succeed, got error: %v", err)
 		}
@@ -410,7 +414,7 @@ func TestUpdateMarriage(t *testing.T) {
 		}
 
 		// Verify state persistence
-		fetched, err := GetMarriage(ctx, driver, marriageID)
+		fetched, err := GetMarriageFromMarriageId(ctx, driver, marriageID)
 		if err != nil || fetched == nil || len(fetched) == 0 {
 			t.Fatalf("Failed fetching updated marriage record: %v", err)
 		}
@@ -431,12 +435,12 @@ func TestUpdateMarriage(t *testing.T) {
 			DateStart: "11-10-2020",
 		}
 
-		_, err := UpdateMarriage(ctx, driver, marriageID, updatePayload)
+		_, err := UpdateMarriageDates(ctx, driver, marriageID, updatePayload)
 		if err != nil {
 			t.Fatalf("Expected partial start date update to succeed, got: %v", err)
 		}
 
-		fetched, _ := GetMarriage(ctx, driver, marriageID)
+		fetched, _ := GetMarriageFromMarriageId(ctx, driver, marriageID)
 		record := (fetched)[0]
 
 		if record.Start != "11-10-2020" {
@@ -454,12 +458,12 @@ func TestUpdateMarriage(t *testing.T) {
 			DateEnd: "11-10-2024",
 		}
 
-		_, err := UpdateMarriage(ctx, driver, marriageID, updatePayload)
+		_, err := UpdateMarriageDates(ctx, driver, marriageID, updatePayload)
 		if err != nil {
 			t.Fatalf("Expected partial end date update to succeed, got: %v", err)
 		}
 
-		fetched, _ := GetMarriage(ctx, driver, marriageID)
+		fetched, _ := GetMarriageFromMarriageId(ctx, driver, marriageID)
 		record := (fetched)[0]
 
 		if record.Start != "11-10-2018" { // Must preserve original start date
@@ -517,7 +521,7 @@ func TestUpdateMarriage(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			id := tc.marriageID()
-			_, err := UpdateMarriage(ctx, driver, id, tc.updatePayload)
+			_, err := UpdateMarriageDates(ctx, driver, id, tc.updatePayload)
 			if err == nil {
 				t.Fatalf("Expected validation error for '%s', but operation succeeded", tc.name)
 			}
