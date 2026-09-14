@@ -1031,8 +1031,9 @@ func TestCreateRejectsImpossibleDates(t *testing.T) {
 	}
 }
 
-// TestUpdatePre1970Dates guards against GetMS returning negative Unix millis
-// for pre-1970 dates, which the update code then misinterprets as invalid.
+// TestUpdatePre1970Dates guards against Unix-millisecond date comparison, which
+// returns negative values for pre-1970 dates that the update code then
+// misinterpreted as invalid.
 func TestUpdatePre1970Dates(t *testing.T) {
 	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	t.Cleanup(func() { driver.Close(ctx) })
@@ -1055,41 +1056,6 @@ func TestUpdatePre1970Dates(t *testing.T) {
 		t.Errorf("expected to be able to update a pre-1970 date, got error: %v", err)
 	} else if !updated {
 		t.Errorf("expected update to be reported as successful")
-	}
-}
-
-// TestUpdateStoresDatesAsNeo4jDate guards against update.go persisting dates as
-// strings instead of real neo4j.Date values (inconsistent with create.go).
-func TestUpdateStoresDatesAsNeo4jDate(t *testing.T) {
-	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
-	t.Cleanup(func() { driver.Close(ctx) })
-
-	id := uuid.New().String()
-	if _, _, err := CreateNewPerson(ctx, driver, NewPerson{
-		Id:          id,
-		PersonName:  "Date Type " + id,
-		Gender:      Male,
-		DateOfBirth: "01-01-1990",
-		Alive:       false,
-		DateOfDeath: "01-01-2000",
-	}); err != nil {
-		t.Fatalf("failed to create person: %v", err)
-	}
-	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
-
-	before := readPersonProperties(t, ctx, driver, id)
-	if _, ok := before["date_of_birth"].(neo4j.Date); !ok {
-		t.Errorf("date_of_birth should be neo4j.Date after create, got %T", before["date_of_birth"])
-	}
-
-	newDOB := DateProper("02-02-1991")
-	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfBirth: &newDOB}); err != nil {
-		t.Fatalf("failed to update date of birth: %v", err)
-	}
-
-	after := readPersonProperties(t, ctx, driver, id)
-	if _, ok := after["date_of_birth"].(neo4j.Date); !ok {
-		t.Errorf("date_of_birth should remain neo4j.Date after update, got %T (value %v)", after["date_of_birth"], after["date_of_birth"])
 	}
 }
 

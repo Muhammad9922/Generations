@@ -44,13 +44,18 @@ func (d DateProper) IsValid() bool {
 	return correctDate
 }
 
-func (d DateProper) GetMS() int {
+// ParseTime parses the DateProper (DD-MM-YYYY) into a time.Time and reports
+// whether it is a valid calendar date. Unlike the old Unix-millisecond based
+// GetMS, this works for every date Go's time package can represent — including
+// all pre-1970 dates (which previously produced negative millis that callers
+// mistook for the "-1" invalid sentinel) — and never risks integer overflow.
+func (d DateProper) ParseTime() (time.Time, bool) {
 	const layout = "02-01-2006"
-	dObject, err := time.Parse(layout, string(d))
+	t, err := time.Parse(layout, string(d))
 	if err != nil {
-		return -1
+		return time.Time{}, false
 	}
-	return int(dObject.UnixMilli())
+	return t, true
 }
 
 func (d DateProper) GetNeoDate() (*neo4j.Date, error) {
@@ -119,18 +124,17 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 
 		// Date Of Death Must Be After Date Of Birth
 		if params.DateOfBirth != "" {
-			msBirth := params.DateOfBirth.GetMS()
-
-			if msBirth == -1 {
+			birthTime, ok := params.DateOfBirth.ParseTime()
+			if !ok {
 				return "", "", errors.New("Improper Date Of Birth")
 			}
 
-			msDeath := params.DateOfDeath.GetMS()
-			if msDeath == -1 {
+			deathTime, ok := params.DateOfDeath.ParseTime()
+			if !ok {
 				return "", "", errors.New("Improper Date Of Death")
 			}
 
-			if msDeath < msBirth {
+			if deathTime.Before(birthTime) {
 				return "", "", errors.New("Time Of Death Must Be After Time Of Birth")
 			}
 		}

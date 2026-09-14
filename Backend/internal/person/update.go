@@ -76,15 +76,15 @@ func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update Up
 			dod = *update.DateOfDeath
 		}
 
-		timeOfDeath := dod.GetMS()
-		timeOfBirth := dob.GetMS()
+		timeOfBirth, birthOK := dob.ParseTime()
+		timeOfDeath, deathOK := dod.ParseTime()
 
-		if timeOfBirth > 0 && timeOfDeath > 0 {
-			if timeOfBirth > timeOfDeath {
-				return "", false, fmt.Errorf("Time Of Death Is Before Time Of Birth | tb: %v | td: %v", timeOfBirth, timeOfDeath)
-			}
-		} else {
-			return "", false, fmt.Errorf("Invalid Time Recieved For |TOD-MS %v TOD-ORG %v| = |TOB-MS %v TOB-ORG %v|", timeOfDeath, dod, timeOfBirth, dob)
+		if !birthOK || !deathOK {
+			return "", false, fmt.Errorf("Invalid Time Recieved For |TOD-ORG %v| = |TOB-ORG %v|", dod, dob)
+		}
+
+		if timeOfBirth.After(timeOfDeath) {
+			return "", false, fmt.Errorf("Time Of Death Is Before Time Of Birth | tb: %v | td: %v", timeOfBirth, timeOfDeath)
 		}
 
 	}
