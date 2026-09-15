@@ -24,8 +24,8 @@ type MarriageOptionalParams struct {
 	Id        string
 }
 
-func cleanup(ctx context.Context, driver neo4j.Driver, peopleToDelete []string, marriageId string) {
-	if marriageId != "" {
+func cleanup(ctx context.Context, driver neo4j.Driver, peopleToDelete []string, marriageId string, shouldDeleteMarriage bool) {
+	if shouldDeleteMarriage && marriageId != "" {
 		marriage.DeleteMarriage(ctx, driver, marriageId)
 	}
 
@@ -38,6 +38,7 @@ func CreateFamily(ctx context.Context, driver neo4j.Driver, spouseOne person.New
 	peopleToDelete := []string{}
 	childIds := []string{}
 	marriageId := ""
+	createdNewMarriage := false
 	familyDetail := FamilyDetail{}
 
 	// Create Persons
@@ -46,17 +47,17 @@ func CreateFamily(ctx context.Context, driver neo4j.Driver, spouseOne person.New
 	})
 
 	if err != nil {
-		cleanup(ctx, driver, peopleToDelete, marriageId)
+		cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 		return nil, err
 	}
 
 	if !spouseOneAlreadyExists {
 		_, spouseOneId, err := person.CreateNewPerson(ctx, driver, spouseOne)
-		peopleToDelete = append(peopleToDelete, spouseOneId)
 		if err != nil {
-			cleanup(ctx, driver, peopleToDelete, marriageId)
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 			return nil, err
 		}
+		peopleToDelete = append(peopleToDelete, spouseOneId)
 		familyDetail.SpouseOneId = spouseOneId
 	} else {
 		familyDetail.SpouseOneId = spouseOne.Id
@@ -67,42 +68,43 @@ func CreateFamily(ctx context.Context, driver neo4j.Driver, spouseOne person.New
 	})
 
 	if err != nil {
-		cleanup(ctx, driver, peopleToDelete, marriageId)
+		cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 		return nil, err
 	}
 
 	if !spouseTwoAlreadyExists {
 		_, spouseTwoId, err := person.CreateNewPerson(ctx, driver, spouseTwo)
-		peopleToDelete = append(peopleToDelete, spouseTwoId)
 		if err != nil {
-			cleanup(ctx, driver, peopleToDelete, marriageId)
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 			return nil, err
 		}
+		peopleToDelete = append(peopleToDelete, spouseTwoId)
 		familyDetail.SpouseTwoId = spouseTwoId
 	} else {
 		familyDetail.SpouseTwoId = spouseTwo.Id
 	}
 
 	for _, child := range childrenItems {
-		childAlreadyExistis, err := person.CheckPersonExistence(ctx, driver, person.PersonQuery{
+		childAlreadyExists, err := person.CheckPersonExistence(ctx, driver, person.PersonQuery{
 			ID: child.Id,
 		})
 		if err != nil {
-			cleanup(ctx, driver, peopleToDelete, marriageId)
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 			return nil, err
 		}
 
-		if !childAlreadyExistis {
+		if !childAlreadyExists {
 			_, childId, err := person.CreateNewPerson(ctx, driver, child)
+			if err != nil {
+				cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
+				return nil, err
+			}
 			peopleToDelete = append(peopleToDelete, childId)
 			childIds = append(childIds, childId)
 			familyDetail.ChildrenIds = append(familyDetail.ChildrenIds, childId)
-			if err != nil {
-				cleanup(ctx, driver, peopleToDelete, marriageId)
-				return nil, err
-			}
 		} else {
 			childIds = append(childIds, child.Id)
+			familyDetail.ChildrenIds = append(familyDetail.ChildrenIds, child.Id)
 		}
 
 	}
@@ -112,34 +114,38 @@ func CreateFamily(ctx context.Context, driver neo4j.Driver, spouseOne person.New
 
 		existingMarriage, err := marriage.GetMarriageFromMarriageId(ctx, driver, optionalMarriageParams.Id)
 		if err != nil {
-			cleanup(ctx, driver, peopleToDelete, marriageId)
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 			return nil, err
 		}
 
-		if len(existingMarriage) != 0 {
-			existingSpouseOneId, existingSpouseTwoId, existingMarriageId, err := marriage.GetSpouses(ctx, driver, marriage.SpouseQueryParams{
-				MarriageId: optionalMarriageParams.Id,
-			})
-
-			if err != nil {
-				return nil, err
-			}
-
-			if existingMarriageId != optionalMarriageParams.Id {
-				return nil, fmt.Errorf("Marriage Id Does not match with database")
-			}
-
-			if spouseOne.Id != existingSpouseOneId && spouseOne.Id != existingSpouseTwoId {
-				return nil, fmt.Errorf("The Spouses of the existing marriage are not the ones provided here Existing Spouse One and Two are %v and %v while Given spouses are %v and %v", existingSpouseOneId, existingSpouseTwoId, spouseOne.Id, spouseTwo.Id)
-			}
-
-			if spouseTwo.Id != existingSpouseOneId && spouseTwo.Id != existingSpouseTwoId {
-				return nil, fmt.Errorf("The Spouses of the existing marriage are not the ones provided here Existing Spouse One and Two are %v and %v while Given spouses are %v and %v", existingSpouseOneId, existingSpouseTwoId, spouseOne.Id, spouseTwo.Id)
-			}
-
-			familyDetail.MarriageID = existingMarriage[0].Id
-			marriageId = existingMarriage[0].Id
+		if len(existingMarriage) == 0 {
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
+			return nil, fmt.Errorf("marriage with id %v not found", optionalMarriageParams.Id)
 		}
+
+		existingSpouseOneId, existingSpouseTwoId, existingMarriageId, err := marriage.GetSpouses(ctx, driver, marriage.SpouseQueryParams{
+			MarriageId: optionalMarriageParams.Id,
+		})
+
+		if err != nil {
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
+			return nil, err
+		}
+
+		if existingMarriageId != optionalMarriageParams.Id {
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
+			return nil, fmt.Errorf("Marriage Id Does not match with database")
+		}
+
+		s1 := familyDetail.SpouseOneId
+		s2 := familyDetail.SpouseTwoId
+		if !((s1 == existingSpouseOneId && s2 == existingSpouseTwoId) || (s1 == existingSpouseTwoId && s2 == existingSpouseOneId)) {
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
+			return nil, fmt.Errorf("The Spouses of the existing marriage are not the ones provided here Existing Spouse One and Two are %v and %v while Given spouses are %v and %v", existingSpouseOneId, existingSpouseTwoId, s1, s2)
+		}
+
+		familyDetail.MarriageID = existingMarriage[0].Id
+		marriageId = existingMarriage[0].Id
 	} else {
 		marriageParams := marriage.NewMarriage{
 			SpouseOne: familyDetail.SpouseOneId,
@@ -151,11 +157,12 @@ func CreateFamily(ctx context.Context, driver neo4j.Driver, spouseOne person.New
 
 		createdMarriageId, err := marriage.CreateNewMarriage(ctx, driver, marriageParams)
 		if err != nil {
-			cleanup(ctx, driver, peopleToDelete, marriageId)
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 			return nil, err
 		}
 
 		marriageId = createdMarriageId
+		createdNewMarriage = true
 		familyDetail.MarriageID = createdMarriageId
 
 	}
@@ -164,11 +171,11 @@ func CreateFamily(ctx context.Context, driver neo4j.Driver, spouseOne person.New
 	for _, childId := range childIds {
 		ok, err := children.CreateNewChild(ctx, driver, marriageId, childId)
 		if err != nil {
-			cleanup(ctx, driver, peopleToDelete, marriageId)
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 			return nil, err
 		}
 		if !ok {
-			cleanup(ctx, driver, peopleToDelete, marriageId)
+			cleanup(ctx, driver, peopleToDelete, marriageId, createdNewMarriage)
 			return nil, fmt.Errorf("Unable to add child %v to marriage %v", childId, marriageId)
 		}
 
