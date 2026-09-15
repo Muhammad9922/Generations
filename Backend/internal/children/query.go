@@ -159,4 +159,54 @@ func GetMarriageThatOfChild(ctx context.Context, driver neo4j.Driver, childId st
 	return &itemMarriage, nil
 }
 
-func GetMarriageThatOfSpouse(ctx context.Context, driver neo4j.Driver, spouseId string) (marriage.NewMarriage, error)
+func GetMarriageThatOfSpouse(ctx context.Context, driver neo4j.Driver, spouseId string) (*marriage.QueryResponse, error) {
+	const query = `
+		MATCH (m:Marriage)<-[:MARRIED]-(p:Person {id: $id})
+		RETURN m.id AS id
+	`
+
+	params := map[string]any{
+		"id": spouseId,
+	}
+
+	records, err := neo4j.ExecuteQuery(
+		ctx,
+		driver,
+		query,
+		params,
+		neo4j.EagerResultTransformer,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(records.Records) == 0 {
+		return nil, nil
+	}
+
+	var itemMarriage marriage.QueryResponse
+
+	for _, marriageRecord := range records.Records {
+		rawId, found := marriageRecord.Get("id")
+		if found {
+			id, ok := rawId.(string)
+			if ok {
+				marriage, err := marriage.GetMarriageFromMarriageId(ctx, driver, id)
+				if err != nil {
+					return nil, err
+				}
+
+				if len(marriage) != 1 {
+					return nil, fmt.Errorf("More Than One Marriages Were Found For This Id: %v", id)
+				}
+
+				itemMarriage = (marriage[0])
+
+			}
+		}
+	}
+
+	return &itemMarriage, nil
+
+}
