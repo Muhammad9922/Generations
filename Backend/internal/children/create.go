@@ -10,7 +10,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
-func CreateNewChildren(ctx context.Context, driver neo4j.Driver, marriageId string, childrenId string) (bool, error) {
+func CreateNewChild(ctx context.Context, driver neo4j.Driver, marriageId string, childrenId string) (bool, error) {
 
 	child, err := person.GetPerson(ctx, driver, childrenId)
 

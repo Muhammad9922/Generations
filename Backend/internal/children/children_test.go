@@ -125,7 +125,7 @@ func TestCreateChildren(t *testing.T) {
 	marriageID, spouseOneID, spouseTwoID := createTestMarriage(t, ctx, driver)
 	childID := createTestPerson(t, ctx, driver, person.Male, "Child")
 
-	created, err := CreateNewChildren(ctx, driver, marriageID, childID)
+	created, err := CreateNewChild(ctx, driver, marriageID, childID)
 
 	if err != nil {
 		t.Fatalf("Expected Child Creation To Succeed, Got Error: %v", err)
@@ -181,7 +181,7 @@ func TestCreateMultipleChildren(t *testing.T) {
 	}
 
 	for index, childID := range childIDs {
-		created, err := CreateNewChildren(ctx, driver, marriageID, childID)
+		created, err := CreateNewChild(ctx, driver, marriageID, childID)
 
 		if err != nil {
 			t.Fatalf("Child %v Should Have Been Linked Without Error: %v", index, err)
@@ -214,7 +214,7 @@ func TestSameChildOnMultipleMarriages(t *testing.T) {
 	childID := createTestPerson(t, ctx, driver, person.Female, "Shared Child")
 
 	for _, marriageID := range []string{firstMarriage, secondMarriage} {
-		created, err := CreateNewChildren(ctx, driver, marriageID, childID)
+		created, err := CreateNewChild(ctx, driver, marriageID, childID)
 
 		if err != nil || !created {
 			t.Fatalf("Child Should Have Been Linked To Marriage %v (created: %v, err: %v)", marriageID, created, err)
@@ -247,11 +247,11 @@ func TestDuplicateChildLink(t *testing.T) {
 	marriageID, _, _ := createTestMarriage(t, ctx, driver)
 	childID := createTestPerson(t, ctx, driver, person.Female, "Only Child")
 
-	if _, err := CreateNewChildren(ctx, driver, marriageID, childID); err != nil {
+	if _, err := CreateNewChild(ctx, driver, marriageID, childID); err != nil {
 		t.Fatalf("First Link Should Have Succeeded, Got: %v", err)
 	}
 
-	repeatCreated, repeatErr := CreateNewChildren(ctx, driver, marriageID, childID)
+	repeatCreated, repeatErr := CreateNewChild(ctx, driver, marriageID, childID)
 
 	if repeatCreated {
 		t.Errorf("Repeating An Existing Link Must Not Report A Newly Created Relationship")
@@ -322,7 +322,7 @@ func TestCreateChildrenInvalidInput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			created, err := CreateNewChildren(ctx, driver, test.marriageID, test.childID)
+			created, err := CreateNewChild(ctx, driver, test.marriageID, test.childID)
 
 			if err == nil {
 				t.Errorf("Expected An Error For %q, Got None", test.name)
@@ -352,7 +352,7 @@ func TestCreateChildrenSpouseLinkedAsOwnChild(t *testing.T) {
 
 	marriageID, spouseOneID, _ := createTestMarriage(t, ctx, driver)
 
-	created, err := CreateNewChildren(ctx, driver, marriageID, spouseOneID)
+	created, err := CreateNewChild(ctx, driver, marriageID, spouseOneID)
 
 	if err != nil {
 		t.Fatalf("Current Implementation Should Allow This, Got Error: %v", err)
@@ -375,7 +375,7 @@ func TestCreateChildrenClosedDriver(t *testing.T) {
 	ctx, driver := db.ConnectDatabase(testDatabaseURI)
 	driver.Close(ctx)
 
-	created, err := CreateNewChildren(ctx, driver, uuid.New().String(), uuid.New().String())
+	created, err := CreateNewChild(ctx, driver, uuid.New().String(), uuid.New().String())
 
 	if err == nil {
 		t.Errorf("A Closed Driver Should Have Caused An Error")
@@ -404,7 +404,7 @@ func TestGetChildren(t *testing.T) {
 	}
 
 	for _, childID := range childIDs {
-		if _, err := CreateNewChildren(ctx, driver, marriageID, childID); err != nil {
+		if _, err := CreateNewChild(ctx, driver, marriageID, childID); err != nil {
 			t.Fatalf("Failed to setup test children: %v", err)
 		}
 	}
@@ -509,7 +509,7 @@ func TestGetMarriageThatOfChild(t *testing.T) {
 	childID := createTestPerson(t, ctx, driver, person.Female, "Child Query Subject")
 
 	// Link the child to the marriage
-	if _, err := CreateNewChildren(ctx, driver, marriageID, childID); err != nil {
+	if _, err := CreateNewChild(ctx, driver, marriageID, childID); err != nil {
 		t.Fatalf("Failed to setup test children: %v", err)
 	}
 
