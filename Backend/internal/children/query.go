@@ -42,12 +42,12 @@ func GetChildren(ctx context.Context, driver neo4j.Driver, marriageId string) ([
 		if found {
 			id, ok := idRaw.(string)
 			if ok {
-				person, err := person.GetPerson(ctx, driver, id)
+				personObject, err := person.GetPerson(ctx, driver, id)
 				if err != nil {
 					return nil, err
 				}
-				if person != nil {
-					children = append(children, *person)
+				if personObject != nil {
+					children = append(children, *personObject)
 				} else {
 					return nil, fmt.Errorf("Invalid Person Found With ID: %v", id)
 				}
@@ -60,7 +60,7 @@ func GetChildren(ctx context.Context, driver neo4j.Driver, marriageId string) ([
 
 func GetParents(ctx context.Context, driver neo4j.Driver, marriageId string) ([]person.NewPerson, error) {
 	const query = `
-		MATCH (m:Marriage)<-[:MARRIED]-(p:Person {id:$id})
+		MATCH (m:Marriage {id:$id})<-[:MARRIED]-(p:Person)
 		RETURN p.id AS id
 	`
 
@@ -91,12 +91,12 @@ func GetParents(ctx context.Context, driver neo4j.Driver, marriageId string) ([]
 		if found {
 			id, ok := idRaw.(string)
 			if ok {
-				person, err := person.GetPerson(ctx, driver, id)
+				personObject, err := person.GetPerson(ctx, driver, id)
 				if err != nil {
 					return nil, err
 				}
-				if person != nil {
-					parents = append(parents, *person)
+				if personObject != nil {
+					parents = append(parents, *personObject)
 				} else {
 					return nil, fmt.Errorf("Invalid Person Found With ID: %v", id)
 				}
@@ -109,6 +109,19 @@ func GetParents(ctx context.Context, driver neo4j.Driver, marriageId string) ([]
 }
 
 func GetMarriageThatOfChild(ctx context.Context, driver neo4j.Driver, childId string) (*marriage.QueryResponse, error) {
+
+	childOk, err := person.CheckPersonExistence(ctx, driver, person.PersonQuery{
+		ID: childId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !childOk {
+		return nil, fmt.Errorf("Invalid Spouse Id Provided")
+	}
+
 	const query = `
 	MATCH (m:Marriage)-[:PRODUCED]->(p:Person {id: $id})
 	RETURN m.id AS id
@@ -141,16 +154,16 @@ func GetMarriageThatOfChild(ctx context.Context, driver neo4j.Driver, childId st
 		if found {
 			id, ok := rawId.(string)
 			if ok {
-				marriage, err := marriage.GetMarriageFromMarriageId(ctx, driver, id)
+				marriageObject, err := marriage.GetMarriageFromMarriageId(ctx, driver, id)
 				if err != nil {
 					return nil, err
 				}
 
-				if len(marriage) != 1 {
+				if len(marriageObject) != 1 {
 					return nil, fmt.Errorf("More Than One Marriages Were Found For This Id: %v", id)
 				}
 
-				itemMarriage = (marriage[0])
+				itemMarriage = (marriageObject[0])
 
 			}
 		}
@@ -159,7 +172,20 @@ func GetMarriageThatOfChild(ctx context.Context, driver neo4j.Driver, childId st
 	return &itemMarriage, nil
 }
 
-func GetMarriageThatOfSpouse(ctx context.Context, driver neo4j.Driver, spouseId string) (*marriage.QueryResponse, error) {
+func GetMarriageThatOfSpouse(ctx context.Context, driver neo4j.Driver, spouseId string) (*[]marriage.QueryResponse, error) {
+
+	spouseOk, err := person.CheckPersonExistence(ctx, driver, person.PersonQuery{
+		ID: spouseId,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !spouseOk {
+		return nil, fmt.Errorf("Invalid Spouse Id Provided")
+	}
+
 	const query = `
 		MATCH (m:Marriage)<-[:MARRIED]-(p:Person {id: $id})
 		RETURN m.id AS id
@@ -185,23 +211,23 @@ func GetMarriageThatOfSpouse(ctx context.Context, driver neo4j.Driver, spouseId 
 		return nil, nil
 	}
 
-	var itemMarriage marriage.QueryResponse
+	var itemMarriage []marriage.QueryResponse
 
 	for _, marriageRecord := range records.Records {
 		rawId, found := marriageRecord.Get("id")
 		if found {
 			id, ok := rawId.(string)
 			if ok {
-				marriage, err := marriage.GetMarriageFromMarriageId(ctx, driver, id)
+				marriageObject, err := marriage.GetMarriageFromMarriageId(ctx, driver, id)
 				if err != nil {
 					return nil, err
 				}
 
-				if len(marriage) != 1 {
+				if len(marriageObject) != 1 {
 					return nil, fmt.Errorf("More Than One Marriages Were Found For This Id: %v", id)
 				}
 
-				itemMarriage = (marriage[0])
+				itemMarriage = append(itemMarriage, marriageObject[0])
 
 			}
 		}

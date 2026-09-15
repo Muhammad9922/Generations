@@ -387,3 +387,248 @@ func TestCreateChildrenClosedDriver(t *testing.T) {
 
 	t.Logf("Closed Driver Error: %v", err)
 }
+
+// TestGetChildren verifies that all children linked to a marriage are accurately
+// returned, and that empty or invalid marriages gracefully return nothing without error.
+func TestGetChildren(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	marriageID, _, _ := createTestMarriage(t, ctx, driver)
+
+	// Create and link multiple children
+	childIDs := []string{
+		createTestPerson(t, ctx, driver, person.Male, "Child A"),
+		createTestPerson(t, ctx, driver, person.Female, "Child B"),
+		createTestPerson(t, ctx, driver, person.Male, "Child C"),
+	}
+
+	for _, childID := range childIDs {
+		if _, err := CreateNewChildren(ctx, driver, marriageID, childID); err != nil {
+			t.Fatalf("Failed to setup test children: %v", err)
+		}
+	}
+
+	t.Run("Valid Marriage With Children", func(t *testing.T) {
+		fetchedChildren, err := GetChildren(ctx, driver, marriageID)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+
+		if len(fetchedChildren) != len(childIDs) {
+			t.Errorf("Expected %d children, got %d", len(childIDs), len(fetchedChildren))
+		}
+
+		// Verify all created children are in the result (order is not guaranteed by Neo4j)
+		foundMap := make(map[string]bool)
+		for _, child := range fetchedChildren {
+			foundMap[child.Id] = true
+		}
+		for _, expectedID := range childIDs {
+			if !foundMap[expectedID] {
+				t.Errorf("Expected child ID %v to be returned, but it was missing", expectedID)
+			}
+		}
+	})
+
+	t.Run("Marriage With No Children", func(t *testing.T) {
+		emptyMarriageID, _, _ := createTestMarriage(t, ctx, driver)
+		fetchedChildren, err := GetChildren(ctx, driver, emptyMarriageID)
+
+		if err != nil {
+			t.Fatalf("Expected no error for empty marriage, got: %v", err)
+		}
+		if len(fetchedChildren) != 0 {
+			t.Errorf("Expected 0 children, got %d", len(fetchedChildren))
+		}
+	})
+
+	t.Run("Invalid Marriage ID", func(t *testing.T) {
+		fetchedChildren, err := GetChildren(ctx, driver, uuid.New().String())
+		if err != nil {
+			t.Fatalf("Expected no error for non-existent ID, got: %v", err)
+		}
+		if len(fetchedChildren) != 0 {
+			t.Errorf("Expected 0 children for non-existent ID, got %d", len(fetchedChildren))
+		}
+	})
+}
+
+// TestGetParents checks that querying a marriage ID correctly returns the two
+// spouses (parents) connected to it.
+func TestGetParents(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	marriageID, spouseOneID, spouseTwoID := createTestMarriage(t, ctx, driver)
+
+	t.Run("Valid Marriage ID", func(t *testing.T) {
+		parents, err := GetParents(ctx, driver, marriageID)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+
+		if len(parents) != 2 {
+			t.Fatalf("Expected exactly 2 parents, got %d", len(parents))
+		}
+
+		// Order is not guaranteed, so check both
+		hasSpouseOne, hasSpouseTwo := false, false
+		for _, p := range parents {
+			if p.Id == spouseOneID {
+				hasSpouseOne = true
+			}
+			if p.Id == spouseTwoID {
+				hasSpouseTwo = true
+			}
+		}
+
+		if !hasSpouseOne || !hasSpouseTwo {
+			t.Errorf("Expected parents to match spouse IDs. Got IDs: %v, %v", parents[0].Id, parents[1].Id)
+		}
+	})
+
+	t.Run("Invalid Marriage ID", func(t *testing.T) {
+		parents, err := GetParents(ctx, driver, uuid.New().String())
+		if err != nil {
+			t.Fatalf("Expected no error for non-existent ID, got: %v", err)
+		}
+		if len(parents) != 0 {
+			t.Errorf("Expected 0 parents for invalid ID, got %d", len(parents))
+		}
+	})
+}
+
+// TestGetMarriageThatOfChild validates that a child can successfully identify
+// the marriage that produced them.
+func TestGetMarriageThatOfChild(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	marriageID, _, _ := createTestMarriage(t, ctx, driver)
+	childID := createTestPerson(t, ctx, driver, person.Female, "Child Query Subject")
+
+	// Link the child to the marriage
+	if _, err := CreateNewChildren(ctx, driver, marriageID, childID); err != nil {
+		t.Fatalf("Failed to setup test children: %v", err)
+	}
+
+	t.Run("Valid Child ID", func(t *testing.T) {
+		resultMarriage, err := GetMarriageThatOfChild(ctx, driver, childID)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if resultMarriage == nil {
+			t.Fatalf("Expected to find a marriage, got nil")
+		}
+		if resultMarriage.Id != marriageID {
+			t.Errorf("Expected marriage ID %v, got %v", marriageID, resultMarriage.Id)
+		}
+	})
+
+	t.Run("Child With No Producing Marriage", func(t *testing.T) {
+		orphanID := createTestPerson(t, ctx, driver, person.Male, "Orphan Child")
+		resultMarriage, err := GetMarriageThatOfChild(ctx, driver, orphanID)
+
+		if err != nil {
+			t.Fatalf("Expected no error for unlinked child, got: %v", err)
+		}
+		if resultMarriage != nil {
+			t.Errorf("Expected nil marriage, got ID: %v", resultMarriage.Id)
+		}
+	})
+
+	t.Run("Invalid Child ID", func(t *testing.T) {
+		resultMarriage, err := GetMarriageThatOfChild(ctx, driver, uuid.New().String())
+		if err == nil {
+			t.Fatalf("Expected no error for invalid ID, got: %v", err)
+		}
+		if resultMarriage != nil {
+			t.Errorf("Expected nil marriage for invalid ID, got ID: %v", resultMarriage.Id)
+		}
+	})
+}
+
+// TestGetMarriageThatOfSpouse ensures that we can fetch all marriages associated
+// with a specific spouse, including edge cases where a person has zero or multiple marriages.
+func TestGetMarriageThatOfSpouse(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	t.Run("Person With Multiple Marriages", func(t *testing.T) {
+		spouseA := createTestPerson(t, ctx, driver, person.Female, "Spouse A")
+		spouseB := createTestPerson(t, ctx, driver, person.Male, "Spouse B")
+		spouseC := createTestPerson(t, ctx, driver, person.Male, "Spouse C")
+
+		// Create Marriage 1 (A + B)
+		marriage1ID, err := marriage.CreateNewMarriage(ctx, driver, marriage.NewMarriage{
+			SpouseOne: spouseA,
+			SpouseTwo: spouseB,
+			DateStart: "01-01-2010",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create first marriage: %v", err)
+		}
+
+		// Create Marriage 2 (A + C)
+		marriage2ID, err := marriage.CreateNewMarriage(ctx, driver, marriage.NewMarriage{
+			SpouseOne: spouseA,
+			SpouseTwo: spouseC,
+			DateStart: "01-01-2020",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create second marriage: %v", err)
+		}
+
+		// Query marriagesItems for Spouse A
+		marriages, err := GetMarriageThatOfSpouse(ctx, driver, spouseA)
+		marriagesItems := *marriages
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+
+		if len(marriagesItems) != 2 {
+			t.Fatalf("Expected 2 marriages, got %d", len(marriagesItems))
+		}
+
+		// Verify both marriage IDs are in the result
+		foundMap := map[string]bool{marriagesItems[0].Id: true, marriagesItems[1].Id: true}
+		if !foundMap[marriage1ID] || !foundMap[marriage2ID] {
+			t.Errorf("Expected marriages %v and %v. Got: %v, %v",
+				marriage1ID, marriage2ID, marriagesItems[0].Id, marriagesItems[1].Id)
+		}
+	})
+
+	t.Run("Person With No Marriages", func(t *testing.T) {
+		singlePersonID := createTestPerson(t, ctx, driver, person.Female, "Single Person")
+
+		marriagesItems, err := GetMarriageThatOfSpouse(ctx, driver, singlePersonID)
+		if marriagesItems == nil {
+			return
+		}
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		marriages := *marriagesItems
+		if len(marriages) != 0 {
+			t.Errorf("Expected 0 marriages, got %d", len(marriages))
+		}
+	})
+
+	t.Run("Invalid Person ID", func(t *testing.T) {
+		marriagesItems, err := GetMarriageThatOfSpouse(ctx, driver, uuid.New().String())
+
+		if err == nil {
+			t.Fatalf("Expected error for invalid ID, got: %v", err)
+		}
+
+		if marriagesItems == nil {
+			return
+		}
+
+		marriages := *marriagesItems
+		if len(marriages) != 0 {
+			t.Errorf("Expected 0 marriages, got %d", len(marriages))
+		}
+	})
+}
