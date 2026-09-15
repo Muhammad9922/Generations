@@ -245,3 +245,73 @@ func GetSpouses(ctx context.Context, driver neo4j.Driver, params SpouseQueryPara
 	}
 
 }
+
+func GetMarriageFromSpouse(ctx context.Context, driver neo4j.Driver, spouseId string) (*QueryResponse, error) {
+	const query = `
+	MATCH (p:Person {id: $id})-[:MARRIED]->(m:Marriage)
+	RETURN m.id AS id, m.start AS start, m.end AS end
+	`
+
+	queryParams := map[string]any{
+		"id": spouseId,
+	}
+
+	records, err := neo4j.ExecuteQuery(
+		ctx,
+		driver,
+		query,
+		queryParams,
+		neo4j.EagerResultTransformer,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(records.Records) == 0 {
+		return nil, nil
+	}
+
+	if len(records.Records) != 1 {
+		return nil, fmt.Errorf("Invalid Number Of Marriages From ID: %v", records.Records[0])
+	}
+
+	record := records.Records[0]
+
+	response := QueryResponse{}
+	marriageIdRaw, found := record.Get("id")
+	if found {
+		marriageId, ok := marriageIdRaw.(string)
+		if ok {
+			response.Id = marriageId
+		}
+	}
+
+	startTimeRaw, found := record.Get("start")
+	if found {
+		startTime, ok := person.FormatDate(startTimeRaw)
+		if ok {
+			response.Start = person.DateProper(startTime)
+			if isValid := response.Start.IsValid(); !isValid {
+				return nil, fmt.Errorf("Invalid End Time Provided: %v", startTime)
+			}
+		} else {
+			return nil, fmt.Errorf("Invalid Start Date Found: %v", startTimeRaw)
+		}
+	}
+
+	endTimeRaw, found := record.Get("end")
+	if found {
+		endTime, ok := person.FormatDate(endTimeRaw)
+		if ok {
+			response.End = person.GetProperDate(endTime)
+			if isValid := response.End.IsValid(); !isValid {
+				return nil, fmt.Errorf("Invalid Start Time Provided: %v", endTime)
+			}
+		} else {
+			return nil, fmt.Errorf("Invalid End Date Found: %v", endTimeRaw)
+		}
+	}
+
+	return &response, nil
+}

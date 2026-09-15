@@ -528,3 +528,56 @@ func TestUpdateMarriage(t *testing.T) {
 		})
 	}
 }
+
+func TestGetMarriageFromSpouse(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	defer driver.Close(ctx)
+
+	_, spouseOneId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
+		PersonName:  "Spouse One",
+		Alive:       false,
+		Gender:      person.Male,
+		DateOfBirth: "11-10-2000",
+		DateOfDeath: "11-10-2026",
+	})
+	if err != nil {
+		t.Fatalf("Error Creating Spouse One %q", err)
+	}
+
+	_, spouseTwoId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
+		PersonName:  "Spouse Two",
+		Alive:       false,
+		Gender:      person.Female,
+		DateOfBirth: "11-10-2000",
+		DateOfDeath: "11-10-2026",
+	})
+	if err != nil {
+		t.Fatalf("Error Creating Spouse Two %q", err)
+	}
+
+	expectedMarriageId, err := CreateNewMarriage(ctx, driver, NewMarriage{
+		SpouseOne: spouseOneId,
+		SpouseTwo: spouseTwoId,
+		DateStart: "11-10-2006",
+		DateEnd:   "11-10-2024",
+	})
+	if err != nil {
+		t.Fatalf("Error Creating New Marriage: %v", err)
+	}
+	if expectedMarriageId == "" {
+		t.Fatalf("No Marriage Was Created Without Errors")
+	}
+
+	response, err := GetMarriageFromSpouse(ctx, driver, spouseOneId)
+	if err != nil {
+		t.Fatalf("Failed to GetMarriageFromSpouse: %v", err)
+	}
+
+	if response == nil {
+		t.Fatalf("Expected a valid marriage response, but got nil")
+	}
+
+	if response.Id != expectedMarriageId {
+		t.Errorf("Expected Marriage ID %q, but got %q", expectedMarriageId, response.Id)
+	}
+}

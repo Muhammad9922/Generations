@@ -10,7 +10,7 @@ import (
 )
 
 // Helper function to safely format Neo4j date types or string representations to dd-mm-yyyy
-func formatDate(val any) (string, bool) {
+func FormatDate(val any) (string, bool) {
 	if val == nil {
 		return "", false
 	}
