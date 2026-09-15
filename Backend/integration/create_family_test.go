@@ -1,4 +1,4 @@
-package tests
+package integration
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"uuid"
 
-	"github.com/Muhammad9922/Generations/integration"
 	"github.com/Muhammad9922/Generations/internal/db"
 	"github.com/Muhammad9922/Generations/internal/marriage"
 	"github.com/Muhammad9922/Generations/internal/person"
@@ -209,12 +208,12 @@ func TestCreateFamily_AllNewEntities_Success(t *testing.T) {
 		Alive:       true,
 	}
 
-	marriageParams := integration.MarriageOptionalParams{
+	marriageParams := MarriageOptionalParams{
 		DateStart: "15-06-2005",
 		DateEnd:   "20-08-2020",
 	}
 
-	family, err := integration.CreateFamily(ctx, driver, spouseOne, spouseTwo, []person.NewPerson{child1, child2}, marriageParams)
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, []person.NewPerson{child1, child2}, marriageParams)
 	if err != nil {
 		t.Fatalf("CreateFamily failed: %v", err)
 	}
@@ -260,7 +259,7 @@ func TestCreateFamily_NoChildren_Success(t *testing.T) {
 		Alive:       true,
 	}
 
-	family, err := integration.CreateFamily(ctx, driver, spouseOne, spouseTwo, []person.NewPerson{}, integration.MarriageOptionalParams{})
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, []person.NewPerson{}, MarriageOptionalParams{})
 	if err != nil {
 		t.Fatalf("CreateFamily failed without children: %v", err)
 	}
@@ -319,7 +318,7 @@ func TestCreateFamily_ExistingSpouses_Success(t *testing.T) {
 		Alive:       true,
 	}
 
-	family, err := integration.CreateFamily(ctx, driver, s1Input, s2Input, []person.NewPerson{child}, integration.MarriageOptionalParams{
+	family, err := CreateFamily(ctx, driver, s1Input, s2Input, []person.NewPerson{child}, MarriageOptionalParams{
 		DateStart: "10-10-2010",
 	})
 	if err != nil {
@@ -364,7 +363,7 @@ func TestCreateFamily_PartiallyExistingSpouses_Success(t *testing.T) {
 		Alive:       true,
 	}
 
-	family, err := integration.CreateFamily(ctx, driver, s1Input, s2New, nil, integration.MarriageOptionalParams{})
+	family, err := CreateFamily(ctx, driver, s1Input, s2New, nil, MarriageOptionalParams{})
 	if err != nil {
 		teardownTestNodes(ctx, driver, "", s1ID)
 		t.Fatalf("CreateFamily failed with partially existing spouses: %v", err)
@@ -420,7 +419,7 @@ func TestCreateFamily_ExistingAndMixedChildren_Success(t *testing.T) {
 		Alive:       true,
 	}
 
-	family, err := integration.CreateFamily(ctx, driver, spouseOne, spouseTwo, []person.NewPerson{c1Input, c2New}, integration.MarriageOptionalParams{})
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, []person.NewPerson{c1Input, c2New}, MarriageOptionalParams{})
 	if err != nil {
 		person.DeleteUser(ctx, driver, c1ID)
 		t.Fatalf("CreateFamily failed with mixed children: %v", err)
@@ -481,7 +480,7 @@ func TestCreateFamily_AttachToExistingMarriage_Success(t *testing.T) {
 		Alive:       true,
 	}
 
-	family, err := integration.CreateFamily(ctx, driver, s1Input, s2Input, []person.NewPerson{child}, integration.MarriageOptionalParams{
+	family, err := CreateFamily(ctx, driver, s1Input, s2Input, []person.NewPerson{child}, MarriageOptionalParams{
 		Id: existingMID,
 	})
 	if err != nil {
@@ -538,7 +537,7 @@ func TestCreateFamily_AttachToExistingMarriage_ReversedSpouses_Success(t *testin
 	}
 
 	// Pass s2 as spouseOne and s1 as spouseTwo
-	family, err := integration.CreateFamily(ctx, driver, s2Input, s1Input, []person.NewPerson{child}, integration.MarriageOptionalParams{
+	family, err := CreateFamily(ctx, driver, s2Input, s1Input, []person.NewPerson{child}, MarriageOptionalParams{
 		Id: existingMID,
 	})
 	if err != nil {
@@ -552,4 +551,362 @@ func TestCreateFamily_AttachToExistingMarriage_ReversedSpouses_Success(t *testin
 		t.Errorf("Expected MarriageID %s, got %s", existingMID, family.MarriageID)
 	}
 	verifyChildRelationshipInDB(t, ctx, driver, existingMID, family.ChildrenIds[0])
+}
+
+// ===========================================================================
+// Validation & Failure Tests (Data Validation & Direct DB Rollback Verification)
+// ===========================================================================
+
+func TestCreateFamily_Validation_InvalidSpouseOne_Error(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	// Missing PersonName
+	invalidSpouseOne := person.NewPerson{
+		PersonName:  "",
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1980",
+		Alive:       true,
+	}
+	spouseTwo := person.NewPerson{
+		PersonName:  fmt.Sprintf("Mother %s", tag),
+		Gender:      person.Female,
+		DateOfBirth: "01-01-1982",
+		Alive:       true,
+	}
+
+	family, err := CreateFamily(ctx, driver, invalidSpouseOne, spouseTwo, nil, MarriageOptionalParams{})
+	if err == nil {
+		if family != nil {
+			teardownTestNodes(ctx, driver, family.MarriageID, family.SpouseOneId, family.SpouseTwoId)
+		}
+		t.Fatalf("Expected error due to empty spouseOne name, but got nil")
+	}
+	if family != nil {
+		t.Errorf("Expected family to be nil on error, got %v", family)
+	}
+}
+
+func TestCreateFamily_Validation_InvalidSpouseTwo_Rollback(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	spouseOne := person.NewPerson{
+		PersonName:  fmt.Sprintf("FatherToRollback %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1980",
+		Alive:       true,
+	}
+	// Invalid gender for spouse 2
+	invalidSpouseTwo := person.NewPerson{
+		PersonName:  fmt.Sprintf("MotherInvalid %s", tag),
+		Gender:      person.Gender("UnknownGender"),
+		DateOfBirth: "01-01-1982",
+		Alive:       true,
+	}
+
+	family, err := CreateFamily(ctx, driver, spouseOne, invalidSpouseTwo, nil, MarriageOptionalParams{})
+	if err == nil {
+		if family != nil {
+			teardownTestNodes(ctx, driver, family.MarriageID, family.SpouseOneId, family.SpouseTwoId)
+		}
+		t.Fatalf("Expected error due to invalid spouseTwo gender, but got nil")
+	}
+
+	// Direct DB check: spouseOne must have been cleaned up and deleted from DB
+	res, errQuery := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person {name: $name}) RETURN p.id AS id`,
+		map[string]any{"name": spouseOne.PersonName},
+		neo4j.EagerResultTransformer,
+	)
+	if errQuery != nil {
+		t.Fatalf("Query failed: %v", errQuery)
+	}
+	if len(res.Records) > 0 {
+		rolledBackID, _ := res.Records[0].Get("id")
+		person.DeleteUser(ctx, driver, rolledBackID.(string))
+		t.Fatalf("SpouseOne was NOT cleaned up from DB after spouseTwo validation failure")
+	}
+}
+
+func TestCreateFamily_Validation_SameGender_Rollback(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	// Both spouses Male
+	spouseOne := person.NewPerson{
+		PersonName:  fmt.Sprintf("MaleOne %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1980",
+		Alive:       true,
+	}
+	spouseTwo := person.NewPerson{
+		PersonName:  fmt.Sprintf("MaleTwo %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1982",
+		Alive:       true,
+	}
+
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, nil, MarriageOptionalParams{})
+	if err == nil {
+		if family != nil {
+			teardownTestNodes(ctx, driver, family.MarriageID, family.SpouseOneId, family.SpouseTwoId)
+		}
+		t.Fatalf("Expected error for same-sex marriage creation, got nil")
+	}
+
+	// Verify both newly created spouses were rolled back
+	res, _ := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person) WHERE p.name IN [$n1, $n2] RETURN count(p) AS total`,
+		map[string]any{"n1": spouseOne.PersonName, "n2": spouseTwo.PersonName},
+		neo4j.EagerResultTransformer,
+	)
+	total, _ := res.Records[0].Get("total")
+	if total.(int64) != 0 {
+		t.Errorf("Expected both spouses to be deleted upon gender conflict, but found %d", total.(int64))
+	}
+}
+
+func TestCreateFamily_Validation_MarriageBeforeBirth_Rollback(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	// Spouse one birth in 2010, marriage in 2000
+	spouseOne := person.NewPerson{
+		PersonName:  fmt.Sprintf("LateBornFather %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-2010",
+		Alive:       true,
+	}
+	spouseTwo := person.NewPerson{
+		PersonName:  fmt.Sprintf("NormalMother %s", tag),
+		Gender:      person.Female,
+		DateOfBirth: "01-01-1985",
+		Alive:       true,
+	}
+
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, nil, MarriageOptionalParams{
+		DateStart: "01-01-2000",
+	})
+	if err == nil {
+		if family != nil {
+			teardownTestNodes(ctx, driver, family.MarriageID, family.SpouseOneId, family.SpouseTwoId)
+		}
+		t.Fatalf("Expected error when marriage date is before birth date, got nil")
+	}
+
+	// Verify both spouses were rolled back
+	res, _ := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person) WHERE p.name IN [$n1, $n2] RETURN count(p) AS total`,
+		map[string]any{"n1": spouseOne.PersonName, "n2": spouseTwo.PersonName},
+		neo4j.EagerResultTransformer,
+	)
+	total, _ := res.Records[0].Get("total")
+	if total.(int64) != 0 {
+		t.Errorf("Expected both spouses to be deleted upon date conflict, but found %d", total.(int64))
+	}
+}
+
+func TestCreateFamily_Validation_MarriageEndAfterDeath_Rollback(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	// Spouse one died in 2015, marriage end in 2020
+	spouseOne := person.NewPerson{
+		PersonName:  fmt.Sprintf("DeceasedFather %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1970",
+		DateOfDeath: "01-01-2015",
+		Alive:       false,
+	}
+	spouseTwo := person.NewPerson{
+		PersonName:  fmt.Sprintf("LivingMother %s", tag),
+		Gender:      person.Female,
+		DateOfBirth: "01-01-1975",
+		Alive:       true,
+	}
+
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, nil, MarriageOptionalParams{
+		DateStart: "01-01-1995",
+		DateEnd:   "01-01-2020",
+	})
+	if err == nil {
+		if family != nil {
+			teardownTestNodes(ctx, driver, family.MarriageID, family.SpouseOneId, family.SpouseTwoId)
+		}
+		t.Fatalf("Expected error when marriage end is after spouse death date, got nil")
+	}
+
+	// Verify both spouses were rolled back
+	res, _ := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person) WHERE p.name IN [$n1, $n2] RETURN count(p) AS total`,
+		map[string]any{"n1": spouseOne.PersonName, "n2": spouseTwo.PersonName},
+		neo4j.EagerResultTransformer,
+	)
+	total, _ := res.Records[0].Get("total")
+	if total.(int64) != 0 {
+		t.Errorf("Expected both spouses to be deleted upon death date conflict, but found %d", total.(int64))
+	}
+}
+
+func TestCreateFamily_Validation_NonExistentExistingMarriage_Rollback(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	spouseOne := person.NewPerson{
+		PersonName:  fmt.Sprintf("GhostHusband %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1980",
+		Alive:       true,
+	}
+	spouseTwo := person.NewPerson{
+		PersonName:  fmt.Sprintf("GhostWife %s", tag),
+		Gender:      person.Female,
+		DateOfBirth: "01-01-1982",
+		Alive:       true,
+	}
+
+	invalidMarriageID := uuid.New().String()
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, nil, MarriageOptionalParams{
+		Id: invalidMarriageID,
+	})
+	if err == nil {
+		if family != nil {
+			teardownTestNodes(ctx, driver, family.MarriageID, family.SpouseOneId, family.SpouseTwoId)
+		}
+		t.Fatalf("Expected error for non-existent marriage ID, got nil")
+	}
+
+	// Verify both newly created spouses were rolled back
+	res, _ := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person) WHERE p.name IN [$n1, $n2] RETURN count(p) AS total`,
+		map[string]any{"n1": spouseOne.PersonName, "n2": spouseTwo.PersonName},
+		neo4j.EagerResultTransformer,
+	)
+	total, _ := res.Records[0].Get("total")
+	if total.(int64) != 0 {
+		t.Errorf("Expected both spouses to be deleted when marriage ID is not found, but found %d", total.(int64))
+	}
+}
+
+func TestCreateFamily_Validation_MismatchedSpousesForExistingMarriage_Rollback(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	s1Input := person.NewPerson{
+		PersonName:  fmt.Sprintf("RealSpouseOne %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1980",
+		Alive:       true,
+	}
+	s2Input := person.NewPerson{
+		PersonName:  fmt.Sprintf("RealSpouseTwo %s", tag),
+		Gender:      person.Female,
+		DateOfBirth: "01-01-1982",
+		Alive:       true,
+	}
+	_, s1ID, _ := person.CreateNewPerson(ctx, driver, s1Input)
+	_, s2ID, _ := person.CreateNewPerson(ctx, driver, s2Input)
+
+	existingMID, err := marriage.CreateNewMarriage(ctx, driver, marriage.NewMarriage{
+		SpouseOne: s1ID,
+		SpouseTwo: s2ID,
+		DateStart: "01-01-2005",
+	})
+	if err != nil {
+		teardownTestNodes(ctx, driver, "", s1ID, s2ID)
+		t.Fatalf("Failed creating marriage: %v", err)
+	}
+	defer teardownTestNodes(ctx, driver, existingMID, s1ID, s2ID)
+
+	s1Input.Id = s1ID
+	// Fake spouse 3 (newly created)
+	fakeSpouse := person.NewPerson{
+		PersonName:  fmt.Sprintf("FakeSpouseThree %s", tag),
+		Gender:      person.Female,
+		DateOfBirth: "01-01-1985",
+		Alive:       true,
+	}
+
+	family, err := CreateFamily(ctx, driver, s1Input, fakeSpouse, nil, MarriageOptionalParams{
+		Id: existingMID,
+	})
+
+	if err == nil || family != nil {
+		t.Fatalf("Expected error when providing mismatched spouse for existing marriage, got nil")
+	}
+
+	// Verify newly created fakeSpouse was deleted during cleanup
+	res, _ := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person {name: $name}) RETURN count(p) AS total`,
+		map[string]any{"name": fakeSpouse.PersonName},
+		neo4j.EagerResultTransformer,
+	)
+	total, _ := res.Records[0].Get("total")
+	if total.(int64) != 0 {
+		t.Errorf("Expected fakeSpouse to be rolled back, but found in DB")
+	}
+}
+
+func TestCreateFamily_Validation_InvalidChild_Rollback(t *testing.T) {
+	ctx, driver := db.ConnectDatabase(testDatabaseURI)
+	defer driver.Close(ctx)
+
+	tag := uuid.New().String()[:8]
+	spouseOne := person.NewPerson{
+		PersonName:  fmt.Sprintf("FatherRollbackChild %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-1980",
+		Alive:       true,
+	}
+	spouseTwo := person.NewPerson{
+		PersonName:  fmt.Sprintf("MotherRollbackChild %s", tag),
+		Gender:      person.Female,
+		DateOfBirth: "01-01-1982",
+		Alive:       true,
+	}
+
+	// Child 1 is valid, Child 2 is invalid (empty name)
+	validChild := person.NewPerson{
+		PersonName:  fmt.Sprintf("GoodChild %s", tag),
+		Gender:      person.Male,
+		DateOfBirth: "01-01-2010",
+		Alive:       true,
+	}
+	invalidChild := person.NewPerson{
+		PersonName:  "", // invalid!
+		Gender:      person.Female,
+		DateOfBirth: "01-01-2012",
+		Alive:       true,
+	}
+
+	family, err := CreateFamily(ctx, driver, spouseOne, spouseTwo, []person.NewPerson{validChild, invalidChild}, MarriageOptionalParams{})
+	if err == nil {
+		if family != nil {
+			teardownTestNodes(ctx, driver, family.MarriageID, family.SpouseOneId, family.SpouseTwoId)
+		}
+		t.Fatalf("Expected error when one child is invalid, got nil")
+	}
+
+	// Verify all newly created people (spouse 1, spouse 2, child 1) were cleaned up and rolled back
+	res, _ := neo4j.ExecuteQuery(ctx, driver,
+		`MATCH (p:Person) WHERE p.name IN [$n1, $n2, $n3] RETURN count(p) AS total`,
+		map[string]any{
+			"n1": spouseOne.PersonName,
+			"n2": spouseTwo.PersonName,
+			"n3": validChild.PersonName,
+		},
+		neo4j.EagerResultTransformer,
+	)
+	total, _ := res.Records[0].Get("total")
+	if total.(int64) != 0 {
+		t.Errorf("Expected all created persons to be rolled back on child failure, but %d remain", total.(int64))
+	}
 }
