@@ -6,6 +6,7 @@ import (
 	"testing"
 	"uuid"
 
+	"github.com/Muhammad9922/Generations/internal/children"
 	"github.com/Muhammad9922/Generations/internal/db"
 	"github.com/Muhammad9922/Generations/internal/marriage"
 	"github.com/Muhammad9922/Generations/internal/person"
@@ -908,5 +909,112 @@ func TestCreateFamily_Validation_InvalidChild_Rollback(t *testing.T) {
 	total, _ := res.Records[0].Get("total")
 	if total.(int64) != 0 {
 		t.Errorf("Expected all created persons to be rolled back on child failure, but %d remain", total.(int64))
+	}
+}
+
+func TestGetFamilyCertificate(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	defer driver.Close(ctx)
+
+	// 1. Setup: Create Spouse One
+	_, spouseOneId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
+		PersonName:  "Spouse One",
+		Alive:       true,
+		Gender:      person.Male,
+		DateOfBirth: "11-10-1990",
+	})
+	if err != nil {
+		t.Fatalf("Error Creating Spouse One: %v", err)
+	}
+
+	// 2. Setup: Create Spouse Two
+	_, spouseTwoId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
+		PersonName:  "Spouse Two",
+		Alive:       true,
+		Gender:      person.Female,
+		DateOfBirth: "15-05-1992",
+	})
+	if err != nil {
+		t.Fatalf("Error Creating Spouse Two: %v", err)
+	}
+
+	// 3. Setup: Create the Marriage
+	marriageId, err := marriage.CreateNewMarriage(ctx, driver, marriage.NewMarriage{
+		SpouseOne: spouseOneId,
+		SpouseTwo: spouseTwoId,
+		DateStart: "10-10-2015",
+	})
+	if err != nil || marriageId == "" {
+		t.Fatalf("Error Creating New Marriage: %v", err)
+	}
+
+	// 4. Setup: Create a Child
+	_, childId, err := person.CreateNewPerson(ctx, driver, person.NewPerson{
+		PersonName:  "Child One",
+		Alive:       true,
+		Gender:      person.Male,
+		DateOfBirth: "01-01-2018",
+	})
+	if err != nil {
+		t.Fatalf("Error Creating Child: %v", err)
+	}
+
+	// 5. Setup: Link the Child to the Marriage
+	// Assuming CreateNewChild is inside the children package based on your main code
+	created, err := children.CreateNewChild(ctx, driver, marriageId, childId)
+	if err != nil {
+		t.Fatalf("Expected Child Creation To Succeed, Got Error: %v", err)
+	}
+	if !created {
+		t.Fatalf("Expected The Child Linking To Be Reported As Successful")
+	}
+
+	// 6. Test: Retrieve the Family Certificate
+	cert, err := GetFamilyCertificate(ctx, driver, spouseOneId)
+	if err != nil {
+		t.Fatalf("Failed to GetFamilyCertificate: %v", err)
+	}
+
+	// 7. Assertions
+	if cert == nil {
+		t.Fatalf("Expected a valid FamilyCertificate, but got nil")
+	}
+
+	if cert.Id != marriageId {
+		t.Errorf("Expected Marriage ID %q, but got %q", marriageId, cert.Id)
+	}
+
+	// Verify Spouses
+	if cert.Spouse == nil || len(*cert.Spouse) != 2 {
+		t.Fatalf("Expected exactly 2 spouses, got nil or wrong length")
+	}
+
+	spouses := *cert.Spouse
+	hasSpouseOne := false
+	hasSpouseTwo := false
+	for _, s := range spouses {
+		if s.Id == spouseOneId {
+			hasSpouseOne = true
+		}
+		if s.Id == spouseTwoId {
+			hasSpouseTwo = true
+		}
+	}
+	if !hasSpouseOne || !hasSpouseTwo {
+		t.Errorf("Missing expected spouse IDs in certificate. Got IDs: %v, %v", spouses[0].Id, spouses[1].Id)
+	}
+
+	// Verify Children (Using your exact struct spelling 'Chidren')
+	if cert.Chidren == nil {
+		t.Fatalf("Expected children slice to be initialized, but got nil")
+	}
+
+	childrenList := *cert.Chidren
+	if len(childrenList) != 1 {
+		t.Fatalf("Expected exactly 1 child in the certificate, got %d", len(childrenList))
+	}
+
+	if childrenList[0].Id != childId {
+		t.Errorf("Expected Child ID %q in certificate, but got %q", childId, childrenList[0].Id)
 	}
 }

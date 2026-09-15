@@ -288,7 +288,7 @@ func GetMarriageFromSpouse(ctx context.Context, driver neo4j.Driver, spouseId st
 	}
 
 	startTimeRaw, found := record.Get("start")
-	if found {
+	if found && startTimeRaw != nil {
 		startTime, ok := person.FormatDate(startTimeRaw)
 		if ok {
 			response.Start = person.DateProper(startTime)
@@ -301,7 +301,7 @@ func GetMarriageFromSpouse(ctx context.Context, driver neo4j.Driver, spouseId st
 	}
 
 	endTimeRaw, found := record.Get("end")
-	if found {
+	if found && endTimeRaw != nil {
 		endTime, ok := person.FormatDate(endTimeRaw)
 		if ok {
 			response.End = person.GetProperDate(endTime)
