@@ -16,8 +16,6 @@ func TestCreate7GenComplexFamily(t *testing.T) {
 	tag := uuid.New().String()[:8]
 	var mToClean, pToClean []string
 	defer func() {
-		return // Remove early return if you want the defer to clean up the DB
-
 		for _, m := range mToClean {
 			teardownTestNodes(ctx, driver, m)
 		}
