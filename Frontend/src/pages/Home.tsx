@@ -1,9 +1,9 @@
 import { Section, Text } from "@radix-ui/themes";
+import HeroSection from "../components/Hero";
 
 
 export default function Home(){
-    return         <Text>Welcome To Generations</Text>
-
-    return <Section>
-    </Section>
+    return <div className="w-screen h-screen flex justify-center items-center">
+        <HeroSection />
+    </div>
 }

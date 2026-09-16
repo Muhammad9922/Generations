@@ -1,5 +1,10 @@
-import {Text} from "@radix-ui/themes"
+import {Section, Text, TextField} from "@radix-ui/themes"
 
 export default function HeroSection(){
-    return <Text>Hello</Text>
+    return <Section>
+        <Text size={"9"}>Welcome To Generations!</Text>
+        <TextField.Root placeholder="">
+
+        </TextField.Root>
+    </Section>
 }
