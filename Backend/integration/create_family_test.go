@@ -10,6 +10,7 @@ import (
 	"github.com/Muhammad9922/Generations/internal/db"
 	"github.com/Muhammad9922/Generations/internal/marriage"
 	"github.com/Muhammad9922/Generations/internal/person"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
@@ -1017,4 +1018,7 @@ func TestGetFamilyCertificate(t *testing.T) {
 	if childrenList[0].Id != childId {
 		t.Errorf("Expected Child ID %q in certificate, but got %q", childId, childrenList[0].Id)
 	}
+
+	printedSpew := spew.Sdump(cert)
+	t.Logf("CERT: %v", printedSpew)
 }
