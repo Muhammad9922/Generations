@@ -1,14 +1,9 @@
 import type { Action } from "kbar";
+import { getAllPeople } from "../api/people.ts";
+export type { Person } from "../api/people.ts";
+import type { Person } from "../api/people.ts";
 
 /** Shared display model used by search actions and the person details page. */
-export interface Person {
-    /** Stable identity for route lookup and action registration; names may repeat. */
-    id: string;
-    /** Display name, left unchanged in the underlying data. */
-    name: string;
-    /** Additional search text and context for distinguishing identical names. */
-    personFatherName: string;
-}
 
 /**
  * Returns sample data until the backend exposes a people endpoint.
@@ -16,42 +11,7 @@ export interface Person {
  * coupling UI components to the eventual transport. No HTTP request is made yet.
  */
 export async function GetAllUsers(): Promise<Person[]> {
-
-    const people = [
-        {
-            personFatherName: "Muhammad Saleem",
-            name: "Mahammad Muhayodin",
-            id: "id-1"
-        },
-        {
-            personFatherName: "Tariq Mahmood",
-            name: "Hamza Tariq",
-            id: "id-2"
-        },
-        {
-            personFatherName: "Abdul Rahman",
-            name: "Usman Abdul",
-            id: "id-3"
-        },
-        {
-            personFatherName: "Bilal Ahmed",
-            name: "Zaid Bilal",
-            id: "id-4"
-        },
-        {
-            personFatherName: "Rashid Khan",
-            name: "Omar Rashid",
-            id: "id-5"
-        },
-        {
-            personFatherName: "Abdul Rauf",
-            name: "Usman Abdul",
-            id: "id-6"
-        },
-
-    ];
-
-    return people;
+    return getAllPeople();
 }
 
 /**

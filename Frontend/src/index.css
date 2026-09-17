@@ -88,6 +88,9 @@
 .family-form input:not([type="checkbox"]), .family-form select { width: 100%; min-width: 0; border: 1px solid var(--gray-7); border-radius: 6px; padding: 8px; background: var(--color-panel-solid); color: var(--gray-12); }
 .family-form .family-check { display: flex; align-items: center; gap: 8px; }
 .family-form small { color: var(--gray-11); overflow-wrap: anywhere; }
+.child-dialog { max-height: min(760px, calc(100vh - 32px)); overflow-y: auto; }
+.child-spouse-fields { display: grid; gap: 14px; padding: 14px; border: 1px solid var(--gray-6); border-radius: 8px; background: var(--gray-2); }
+.child-spouse-fields strong { font-size: 13px; }
 @media (max-width: 1050px) { .family-layout { grid-template-columns: 1fr; } .family-layout section { border-top: 1px solid var(--gray-5); padding-top: 20px; } }
 @media (max-width: 420px) { .spouses-grid, .children-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .family-person { transition: none; } }
