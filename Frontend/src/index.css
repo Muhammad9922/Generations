@@ -68,10 +68,7 @@
 .parents-grid > .family-add { min-height: 260px; align-content: center; margin-top: 0; }
 .family-add:disabled { opacity: .5; cursor: not-allowed; }
 .family-empty { padding: 50px 20px; border: 1px solid var(--gray-5); border-radius: 16px; text-align: center; color: var(--gray-10); background: var(--gray-2); }
-.marriage-toolbar { margin-top: 40px; padding: 22px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; border: 1px solid var(--gray-6); border-radius: 16px; background: var(--gray-2); }
-.marriage-summary { flex: 1; min-width: 180px; display: grid; gap: 6px; overflow-wrap: anywhere; }
-.marriage-summary strong { font-size: 14px; font-weight: 600; }
-.marriage-toolbar small { color: var(--gray-11); overflow-wrap: anywhere; }
+.marriage-toolbar { margin-top: 40px; display: flex; align-items: center; }
 .marriage-menubar { display: flex; gap: 4px; padding: 5px; border: 1px solid var(--gray-6); border-radius: 12px; background: var(--color-panel-solid); box-shadow: var(--shadow-2); }
 .marriage-menu-trigger { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 500; padding: 10px 12px; border-radius: 7px; color: var(--gray-12); }
 .marriage-menu-trigger[data-highlighted], .marriage-menu-trigger[data-state="open"] { background: var(--accent-4); color: var(--accent-12); }

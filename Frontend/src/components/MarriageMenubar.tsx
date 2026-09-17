@@ -19,11 +19,6 @@ export default function MarriageMenubar({ families, selected, personId, onSelect
   const pendingAction = useRef<(() => void) | null>(null);
   const name = (family: FamilyCertificate) => `Family ${families.findIndex((item) => item.Id === family.Id) + 1} · ${otherSpouses(family, personId).map((user) => user.Name).join(", ")}`;
   return <footer className="marriage-toolbar" tabIndex={-1} aria-label="Marriage controls">
-    <div className="marriage-summary" aria-live="polite">
-      <span className="family-eyebrow">Selected marriage</span>
-      <strong>{selected ? name(selected) : "No marriage added"}</strong>
-      {selected && <small>{selected.StartOfFamily || "Start unknown"} → {selected.EndOfFamily || "No end date"}<br />ID: {selected.Id}</small>}
-    </div>
     <Menubar.Root className="marriage-menubar" aria-label="Marriage controls" loop>
       <Menubar.Menu>
         <Menubar.Trigger className="marriage-menu-trigger" disabled={!families.length}>
