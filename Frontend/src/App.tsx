@@ -11,7 +11,7 @@ import { createPersonActions, GetAllUsers, type Person } from "./helpers/GetUser
 /**
  * Owns shared people data and the session's theme preference. Keeping the Kbar
  * provider above Routes makes search available on both home and details pages.
- * PersonDetails only renders data; CommandPalette registers and displays actions.
+ * PersonDetails owns demo relationship edits; CommandPalette displays shared actions.
  */
 export default function App() {
   // BrowserRouter in the entry point supplies client-side navigation.
@@ -58,7 +58,7 @@ export default function App() {
             Unknown person IDs and unknown page URLs have separate fallbacks. */}
         <Routes>
           <Route index element={<Home dark={dark} onToggleTheme={() => setDark((value) => !value)} />} />
-          <Route path="people/:id" element={<PersonDetails people={people} loading={loading} error={error} />} />
+          <Route path="people/:id" element={<PersonDetails people={people} loading={loading} error={error} onRename={(id, name) => setPeople((items) => items.map((item) => item.id === id ? { ...item, name } : item))} />} />
           <Route path="*" element={<main className="p-8"><h1>Page not found</h1><Link to="/">Go home</Link></main>} />
         </Routes>
       </KBarProvider>

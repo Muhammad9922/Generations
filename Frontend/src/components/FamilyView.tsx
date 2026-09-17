@@ -1,0 +1,75 @@
+import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import type { Person } from "../helpers/GetUsers";
+import { GetPersonDetails, deleteMarriage, newUser, otherSpouses, replaceUser, sortedChildren, withParents, type PersonDetailsData, type User } from "../helpers/GetPersonDetails";
+import FamilyPersonCard from "./FamilyPersonCard";
+import FamilyEditor, { type EditorRequest } from "./FamilyEditor";
+
+/** Route-keyed prototype state. No mutations are sent to the backend. */
+export default function FamilyView({ id, people, onRename }: { id: string; people: Person[]; onRename: (id: string, name: string) => void }) {
+  // Keep the initial lookup stable when App updates a search label after a rename.
+  const [initialPeople] = useState(people);
+  const [data, setData] = useState<PersonDetailsData | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [focused, setFocused] = useState<string | null>(null);
+  const [selected, setSelected] = useState("");
+  const [editor, setEditor] = useState<EditorRequest | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    GetPersonDetails(id, initialPeople).then((result) => {
+      if (!cancelled) { setData(result); setLoaded(true); }
+    }).catch(() => { if (!cancelled) { setError("Could not load this family."); setLoaded(true); } });
+    return () => { cancelled = true; };
+  }, [id, initialPeople]);
+  if (error) return <p role="alert">{error}</p>;
+  if (!loaded) return <p role="status">Loading family…</p>;
+  if (!data) return <h1>Person not found</h1>;
+  const active = hovered ?? focused;
+  const family = data.Families.find((item) => item.Id === selected) ?? data.Families[0];
+  const children = sortedChildren(data.Families);
+  const editUser = (user: User) => setEditor({ kind: "users", title: "Edit person", users: [user], save: ([updated]) => { setData(replaceUser(data, updated)); onRename(updated.Id, updated.Name); } });
+  const card = (user: User, label: string, familyId?: string, focal = false) => <FamilyPersonCard key={`${focal ? "focal" : familyId ?? "person"}-${user.Id}`}
+    user={user} label={label} familyId={familyId} highlighted={!!familyId && active === familyId}
+    onHover={focal ? () => setHovered(null) : setHovered} onFocus={focal ? () => setFocused(null) : setFocused} onEdit={editUser} />;
+  const addSpouse = () => setEditor({ kind: "users", title: "Add spouse", users: [newUser(crypto.randomUUID())], save: ([spouse]) => {
+    const marriage = { Id: crypto.randomUUID(), Spouse: [data.Person, spouse], Chidren: [] };
+    setData({ ...data, Families: [...data.Families, marriage] }); setSelected(marriage.Id);
+  } });
+  const label = (familyId: string) => `Family ${data.Families.findIndex((item) => item.Id === familyId) + 1}`;
+  return <>
+    <header className="family-heading"><span className="family-eyebrow">YOUR FAMILY, CONNECTED</span><h1>{data.Person.Name}</h1>
+      <p>Hover or focus a spouse or child to illuminate their family.</p>
+      <p className="family-notice">Interactive sample · Family edits reset when you leave; search renames last until refresh. No backend writes.</p>
+    </header>
+    <div className="family-layout">
+      <section><h2>Parents</h2><div className="parents-grid">
+        {data.Parents ? data.Parents.map((user, index) => card(user, `Parent ${index + 1}`)) :
+          <button className="family-add" onClick={() => setEditor({ kind: "users", title: "Add both parents", users: [newUser(crypto.randomUUID()), newUser(crypto.randomUUID())], save: (users) => setData(withParents(data, users)) })}><Plus />Add parents<span>Two parents, added together</span></button>}
+      </div></section>
+      <section><h2>Person & spouses</h2>{card(data.Person, "Selected person", active ?? undefined, true)}
+        <div className="spouses-grid">{data.Families.map((item) => otherSpouses(item, id).map((user) => card(user, `${label(item.Id)} · Spouse`, item.Id)))}</div>
+        <button className="family-add" onClick={addSpouse}><Plus />Add spouse</button>
+      </section>
+      <section><h2>Children <small>{children.length} · Oldest first</small></h2>
+        <div className="children-grid">{children.map(({ user, familyId }) => card(user, label(familyId), familyId))}</div>
+        {!children.length && <p className="family-empty">{family && otherSpouses(family, id).length ? "No children added yet." : "Add a spouse before adding children."}</p>}
+        <button className="family-add" disabled={!family || !otherSpouses(family, id).length} onClick={() => {
+          if (!family) return;
+          setEditor({ kind: "users", title: `Add child to ${label(family.Id)}`, users: [newUser(crypto.randomUUID())], save: ([child]) => setData({ ...data, Families: data.Families.map((item) => item.Id === family.Id ? { ...item, Chidren: [...(item.Chidren ?? []), child] } : item) }) });
+        }}><Plus />Add child{family && ` to ${label(family.Id)}`}</button>
+      </section>
+    </div>
+    <footer className="marriage-toolbar">
+      <label>Selected marriage<select value={family?.Id ?? ""} disabled={!family} onChange={(event) => setSelected(event.target.value)}>
+        {!family && <option value="">No marriage added</option>}
+        {data.Families.map((item) => <option key={item.Id} value={item.Id}>{label(item.Id)} · {otherSpouses(item, id).map((user) => user.Name).join(", ")}</option>)}
+      </select></label>
+      {family && <><small>{family.StartOfFamily || "Start unknown"} → {family.EndOfFamily || "No end date"}<br />ID: {family.Id}</small>
+        <button onClick={() => setEditor({ kind: "marriage", family, save: (updated) => setData({ ...data, Families: data.Families.map((item) => item.Id === updated.Id ? updated : item) }) })}>Change dates</button>
+        <button className="family-danger" onClick={() => setEditor({ kind: "delete", family, save: () => setData(deleteMarriage(data, family.Id)) })}>Delete marriage</button></>}
+    </footer>
+    {editor && <FamilyEditor request={editor} close={() => setEditor(null)} />}
+  </>;
+}
