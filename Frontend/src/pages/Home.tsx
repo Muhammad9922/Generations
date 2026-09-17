@@ -1,72 +1,17 @@
 import { Text } from "@radix-ui/themes";
 import HeroSection from "../components/Hero";
-import {
-  KBarAnimator,
-  KBarPortal,
-  KBarPositioner,
-  KBarProvider,
-  KBarSearch,
-  KBarResults,
-  useMatches,
-  type Action,
-} from "kbar";
-import { useEffect, useState } from "react";
-import { GetAllUsers } from "../helpers/GetUsers"; // Fixed potential typo: GetUses -> GetUsers
 
-function RenderResults() {
-  const { results } = useMatches();
-
+/**
+ * Home route layout only: the global palette, data loading and theme live in App.
+ * Forward the current appearance and toggle callback to the hero rather than
+ * keeping a separate preference that could drift from the palette's command.
+ * min-h-screen allows the page to grow when cards stack on small screens.
+ */
+export default function Home({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
   return (
-    <KBarResults
-      items={results}
-      onRender={({ item, active }) =>
-        typeof item === "string" ? (
-          <div className="px-4 py-2 text-xs uppercase text-gray-400">{item}</div>
-        ) : (
-          <div
-            className={`px-4 py-2 flex items-center justify-between cursor-pointer ${
-              active ? "bg-gray-100 dark:bg-gray-800" : "bg-transparent"
-            }`}
-          >
-            {item.name}
-          </div>
-        )
-      }
-    />
+    <main className="min-h-screen flex justify-center items-center p-6">
+      <HeroSection dark={dark} onToggleTheme={onToggleTheme} />
+      <Text className="fixed bottom-5 right-5 text-gray-400">Muhammad Muhayodin</Text>
+    </main>
   );
-}
-
-export default function Home() {
-    const [actions, setActions] = useState<Action[]>([]);
-    
-    useEffect(() => {
-        GetAllUsers().then((f: Action[]) => {
-            setActions(f);
-            console.log(f)
-        });
-    }, []);
-
-    return (
-        <KBarProvider actions={actions}>
-        <KBarPortal>
-            {/* Renders the content outside the root node */}
-            <KBarPositioner className="z-50 bg-black/50 backdrop-blur-sm">
-            {/* Centers the content */}
-            <KBarAnimator className="w-full max-w-xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl overflow-hidden">
-                {/* Search input */}
-                <KBarSearch className="w-full px-4 py-3 outline-none bg-transparent border-b border-gray-200 dark:border-gray-800" />
-                {/* Render search results */}
-                <RenderResults />
-            </KBarAnimator>
-            </KBarPositioner>
-        </KBarPortal>
-
-        <div className="w-screen h-screen flex justify-center items-center">
-            <HeroSection />
-            <Text className="fixed bottom-5 right-5 text-gray-400">
-            Muhammad Muhayodin
-            </Text>
-        </div>
-        </KBarProvider>
-    );
 }

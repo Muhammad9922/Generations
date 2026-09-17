@@ -2,16 +2,18 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import "@radix-ui/themes/styles.css";
 import './index.css'
-import { Theme } from "@radix-ui/themes";
+
 import App from './App.tsx'
 import { BrowserRouter } from 'react-router';
 
+// Mount into the root element supplied by index.html. Load Radix styles before
+// application styles so the latter can customize the palette's presentation.
+// StrictMode checks effect cleanup in development; BrowserRouter supplies route
+// hooks to App and all pages. Theme and Kbar providers are owned inside App.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Theme>
-      <BrowserRouter>
-          <App />
-      </BrowserRouter>
-    </Theme>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 )

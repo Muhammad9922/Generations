@@ -1,27 +1,45 @@
-import {Flex, Section, Text, Card, Grid} from "@radix-ui/themes"
-import { useKBar } from "kbar"
-import { Moon, Plus, Search, User, type LucideIcon } from "lucide-react"
+import { Flex, Section, Text, Card, Grid } from "@radix-ui/themes";
+import { useKBar } from "kbar";
+import { Moon, Plus, Search, Sun, User, type LucideIcon } from "lucide-react";
 
-function CardOption(props: {Icon: LucideIcon, text: string, onClick?: () => void}) {
-    return <Card className="hover:bg-gray-200 hover:shadow-lg transition-all duration-200 active:bg-gray-400" onClick={props.onClick}>
+/**
+ * Presents a home action as a native button styled by Radix Card.asChild.
+ * Native buttons provide keyboard activation and disabled semantics; cards with
+ * no handler are unavailable features, not clickable controls that do nothing.
+ * The icon is decorative because the visible label supplies the accessible name.
+ */
+function CardOption({ Icon, text, onClick }: { Icon: LucideIcon; text: string; onClick?: () => void }) {
+  return (
+    <Card asChild>
+      <button type="button" onClick={onClick} disabled={!onClick} className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
         <Flex direction="column" align="center" justify="center" gap="3" p="3">
-        <props.Icon size="30" />
-        <Text>{props.text}</Text>
+          <Icon size={30} aria-hidden="true" />
+          <Text>{text}</Text>
         </Flex>
+      </button>
     </Card>
+  );
 }
 
-export default function HeroSection(props: {
-}){
-    const {query} = useKBar()
-
-    return <Section className="flex flex-col gap-9">
-        <Text size={"9"}>Welcome To Generations!</Text>
-        <Grid columns={{ initial: "1", sm: "2", md: "4" }} gap="4" width="100%">
-            <CardOption text="Search User" Icon={Search} onClick={() => {query.toggle()}} />
-            <CardOption text="List Of Singles" Icon={User} />
-            <CardOption text="New Family" Icon={Plus} />
-            <CardOption text="Dark Mode" Icon={Moon} />
-        </Grid>
+/**
+ * Home-page entry points. Theme state and its toggle come from App so the card
+ * stays synchronized with the palette's theme action. Search uses the same Kbar
+ * controller as the global keyboard shortcut, not a separate modal instance.
+ */
+export default function HeroSection({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
+  const { query } = useKBar();
+  return (
+    <Section className="flex flex-col gap-9">
+      <Text size="9">Welcome To Generations!</Text>
+      {/* Expand from one to four columns as space becomes available. Features
+          without implementations stay explicitly labeled and disabled. */}
+      <Grid columns={{ initial: "1", sm: "2", md: "4" }} gap="4" width="100%">
+        <CardOption text="Search User" Icon={Search} onClick={() => query.toggle()} />
+        <CardOption text="List Of Singles (coming soon)" Icon={User} />
+        <CardOption text="New Family (coming soon)" Icon={Plus} />
+        <CardOption text={dark ? "Light Mode" : "Dark Mode"} Icon={dark ? Sun : Moon} onClick={onToggleTheme} />
+      </Grid>
+      <Text size="2" color="gray">Press Ctrl+K / ⌘K to search people and commands.</Text>
     </Section>
+  );
 }
