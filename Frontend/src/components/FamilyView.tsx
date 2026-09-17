@@ -15,9 +15,15 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
   const [error, setError] = useState("");
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  const [selected, setSelected] = useState("");
   const [editor, setEditor] = useState<EditorRequest | null>(null);
-  const actionsRef = useRef<HTMLButtonElement>(null);
+  const [restoreMenuFocus, setRestoreMenuFocus] = useState(false);
+  const returnFocus = useRef<HTMLButtonElement | null>(null);
+  const spousesHeading = useRef<HTMLHeadingElement>(null);
+  const openMarriageEditor = (request: EditorRequest, trigger: HTMLButtonElement | null) => {
+    returnFocus.current = trigger;
+    setRestoreMenuFocus(true);
+    setEditor(request);
+  };
   useEffect(() => {
     let cancelled = false;
     GetPersonDetails(id, initialPeople).then((result) => {
@@ -29,7 +35,6 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
   if (!loaded) return <p role="status">Loading family…</p>;
   if (!data) return <h1>Person not found</h1>;
   const active = hovered ?? focused;
-  const family = data.Families.find((item) => item.Id === selected) ?? data.Families[0];
   const children = sortedChildren(data.Families);
   const editUser = (user: User) => setEditor({ kind: "users", title: "Edit person", users: [user], save: ([updated]) => { setData(replaceUser(data, updated)); onRename(updated.Id, updated.Name); } });
   const card = (user: User, label: string, familyId?: string, focal = false) => <FamilyPersonCard key={`${focal ? "focal" : familyId ?? "person"}-${user.Id}`}
@@ -37,7 +42,7 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
     onHover={focal ? () => setHovered(null) : setHovered} onFocus={focal ? () => setFocused(null) : setFocused} onEdit={editUser} />;
   const addSpouse = () => setEditor({ kind: "users", title: "Add spouse", users: [newUser(crypto.randomUUID())], save: ([spouse]) => {
     const marriage = { Id: crypto.randomUUID(), Spouse: [data.Person, spouse], Chidren: [] };
-    setData({ ...data, Families: [...data.Families, marriage] }); setSelected(marriage.Id);
+    setData({ ...data, Families: [...data.Families, marriage] });
   } });
   const label = (familyId: string) => `Family ${data.Families.findIndex((item) => item.Id === familyId) + 1}`;
   return <>
@@ -50,26 +55,27 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
         {data.Parents ? data.Parents.map((user, index) => card(user, `Parent ${index + 1}`)) :
           <button className="family-add" onClick={() => setEditor({ kind: "users", title: "Add both parents", users: [newUser(crypto.randomUUID()), newUser(crypto.randomUUID())], save: (users) => setData(withParents(data, users)) })}><Plus />Add parents<span>Two parents, added together</span></button>}
       </div></section>
-      <section><h2>Person & spouses</h2>{card(data.Person, "Selected person", active ?? undefined, true)}
-        <div className="spouses-grid">{data.Families.map((item) => otherSpouses(item, id).map((user) => card(user, `${label(item.Id)} · Spouse`, item.Id)))}</div>
+      <section><h2 ref={spousesHeading} tabIndex={-1}>Person & spouses</h2>{card(data.Person, "Selected person", active ?? undefined, true)}
+        <div className="spouses-grid">{data.Families.map((family) => <div className="family-marriage" key={family.Id}>
+          {otherSpouses(family, id).map((user) => card(user, `${label(family.Id)} · Spouse`, family.Id))}
+          <MarriageMenubar label={label(family.Id)} canAddChild={otherSpouses(family, id).length > 0}
+            onAddChild={(trigger) => openMarriageEditor({ kind: "users", title: `Add child to ${label(family.Id)}`, users: [newUser(crypto.randomUUID())], save: ([child]) => setData({ ...data, Families: data.Families.map((item) => item.Id === family.Id ? { ...item, Chidren: [...(item.Chidren ?? []), child] } : item) }) }, trigger)}
+            onEditDates={(trigger) => openMarriageEditor({ kind: "marriage", family, save: (updated) => setData({ ...data, Families: data.Families.map((item) => item.Id === updated.Id ? updated : item) }) }, trigger)}
+            onDelete={(trigger) => openMarriageEditor({ kind: "delete", family, save: () => setData(deleteMarriage(data, family.Id)) }, trigger)} />
+        </div>)}</div>
         <button className="family-add" onClick={addSpouse}><Plus />Add spouse</button>
       </section>
       <section><h2>Children <small>{children.length} · Oldest first</small></h2>
         <div className="children-grid">{children.map(({ user, familyId }) => card(user, label(familyId), familyId))}</div>
-        {!children.length && <p className="family-empty">{family && otherSpouses(family, id).length ? "No children added yet." : "Add a spouse before adding children."}</p>}
-        <button className="family-add" disabled={!family || !otherSpouses(family, id).length} onClick={() => {
-          if (!family) return;
-          setEditor({ kind: "users", title: `Add child to ${label(family.Id)}`, users: [newUser(crypto.randomUUID())], save: ([child]) => setData({ ...data, Families: data.Families.map((item) => item.Id === family.Id ? { ...item, Chidren: [...(item.Chidren ?? []), child] } : item) }) });
-        }}><Plus />Add child{family && ` to ${label(family.Id)}`}</button>
+        {!children.length && <p className="family-empty">{data.Families.some((family) => otherSpouses(family, id).length) ? "No children added yet. Use Actions beside a spouse to add a child." : "Add a spouse before adding children."}</p>}
       </section>
     </div>
-    <MarriageMenubar families={data.Families} selected={family} personId={id} onSelect={setSelected} actionsRef={actionsRef}
-      onEditDates={() => { if (family) setEditor({ kind: "marriage", family, save: (updated) => setData({ ...data, Families: data.Families.map((item) => item.Id === updated.Id ? updated : item) }) }); }}
-      onDelete={() => { if (family) setEditor({ kind: "delete", family, save: () => setData(deleteMarriage(data, family.Id)) }); }} />
-    {editor && <FamilyEditor request={editor} close={() => setEditor(null)} onCloseFocus={editor.kind === "users" ? undefined : () => {
-      const trigger = actionsRef.current;
-      if (trigger?.disabled) trigger.closest("footer")?.focus();
-      else trigger?.focus();
-    }} />}
+    {editor && <FamilyEditor request={editor} close={() => setEditor(null)} onCloseFocus={restoreMenuFocus ? () => {
+      const trigger = returnFocus.current;
+      if (trigger?.isConnected) trigger.focus();
+      else spousesHeading.current?.focus();
+      returnFocus.current = null;
+      setRestoreMenuFocus(false);
+    } : undefined} />}
   </>;
 }
