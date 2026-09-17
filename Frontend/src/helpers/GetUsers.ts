@@ -30,38 +30,25 @@ export async function GetAllUsers() : Promise<Action[]> {
             id: "id-5"
         },
         {
-            personFatherName: "Abdul Rahman",
-            name: "Umar Aslam",
+            personFatherName: "Abdul Rauf",
+            name: "Usman Abdul",
             id: "id-6"
         },
 
     ];
 
-    const duplicatePeople: string[] = people.filter((p, i) => people.findIndex(x => x.name === p.name) !== i).map(v => v.id);
-    const finalPeople = people.map(px => {
-        const returnableObject: Action = {...px, perform: () => {
-            console.error("TODO: Redirect Logic")
-        }}
-        if (duplicatePeople.includes(px.id)){
-            returnableObject["name"] = px.name + " son of " + px.personFatherName
-        }
-        
-        return returnableObject 
-    })
+    const nameCounts = new Map<string, number>();
+    for (const person of people) {
+        nameCounts.set(person.name, (nameCounts.get(person.name) ?? 0) + 1);
+    }
 
-    return finalPeople
-
-    const response = await fetch("http://localhost:8080/api/v1/person/list", {
-        method:"GET",
-        headers: {
-            "accept": "application/json"
-        }
-    }).then(res => res.json())
-    .then(res => res["users"])
-    .catch(res => {
-        console.error(res)
-        return null
-    })
-
-    return response
+    return people.map((person): Action => ({
+        perform: () => {
+            console.error("TODO: Redirect Logic");
+        },
+        id: person.id,
+        name: (nameCounts.get(person.name) ?? 0) > 1
+            ? `${person.name} son of ${person.personFatherName}`
+            : person.name
+    }));
 }

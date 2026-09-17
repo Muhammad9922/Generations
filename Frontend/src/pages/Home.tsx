@@ -9,7 +9,6 @@ import {
   KBarResults,
   useMatches,
   type Action,
-  useKBar,
 } from "kbar";
 import { useEffect, useState } from "react";
 import { GetAllUsers } from "../helpers/GetUsers"; // Fixed potential typo: GetUses -> GetUsers
@@ -43,6 +42,7 @@ export default function Home() {
     useEffect(() => {
         GetAllUsers().then((f: Action[]) => {
             setActions(f);
+            console.log(f)
         });
     }, []);
 
