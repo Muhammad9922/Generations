@@ -1,10 +1,7 @@
+import type { Action } from "kbar";
 
-interface User {
-    name: string,
-    id: string,
-}
 
-export async function GetAllUsers() : Promise<User[]> {
+export async function GetAllUsers() : Promise<Action[]> {
 
     const people = [
         {
@@ -42,10 +39,13 @@ export async function GetAllUsers() : Promise<User[]> {
 
     const duplicatePeople: string[] = people.filter((p, i) => people.findIndex(x => x.name === p.name) !== i).map(v => v.id);
     const finalPeople = people.map(px => {
-        const returnableObject = px
+        const returnableObject: Action = {...px, perform: () => {
+            console.error("TODO: Redirect Logic")
+        }}
         if (duplicatePeople.includes(px.id)){
-            returnableObject["name"] = returnableObject.name + " son of " + returnableObject.personFatherName
+            returnableObject["name"] = px.name + " son of " + px.personFatherName
         }
+        
         return returnableObject 
     })
 
