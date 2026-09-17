@@ -5,12 +5,15 @@ import './index.css'
 import { Theme } from "@radix-ui/themes";
 import App from './App.tsx'
 import { BrowserRouter } from 'react-router';
+import { KBarProvider } from 'kbar';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Theme>
       <BrowserRouter>
-      <App />
+        <KBarProvider>
+          <App />
+        </KBarProvider>
       </BrowserRouter>
     </Theme>
   </StrictMode>,
