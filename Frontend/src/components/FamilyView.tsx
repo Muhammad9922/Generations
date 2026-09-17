@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import MarriageMenubar from "./MarriageMenubar";
 import { Plus } from "lucide-react";
 import type { Person } from "../helpers/GetUsers";
 import { GetPersonDetails, deleteMarriage, newUser, otherSpouses, replaceUser, sortedChildren, withParents, type PersonDetailsData, type User } from "../helpers/GetPersonDetails";
@@ -16,6 +17,7 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
   const [focused, setFocused] = useState<string | null>(null);
   const [selected, setSelected] = useState("");
   const [editor, setEditor] = useState<EditorRequest | null>(null);
+  const actionsRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     let cancelled = false;
     GetPersonDetails(id, initialPeople).then((result) => {
@@ -61,15 +63,13 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
         }}><Plus />Add child{family && ` to ${label(family.Id)}`}</button>
       </section>
     </div>
-    <footer className="marriage-toolbar">
-      <label>Selected marriage<select value={family?.Id ?? ""} disabled={!family} onChange={(event) => setSelected(event.target.value)}>
-        {!family && <option value="">No marriage added</option>}
-        {data.Families.map((item) => <option key={item.Id} value={item.Id}>{label(item.Id)} · {otherSpouses(item, id).map((user) => user.Name).join(", ")}</option>)}
-      </select></label>
-      {family && <><small>{family.StartOfFamily || "Start unknown"} → {family.EndOfFamily || "No end date"}<br />ID: {family.Id}</small>
-        <button onClick={() => setEditor({ kind: "marriage", family, save: (updated) => setData({ ...data, Families: data.Families.map((item) => item.Id === updated.Id ? updated : item) }) })}>Change dates</button>
-        <button className="family-danger" onClick={() => setEditor({ kind: "delete", family, save: () => setData(deleteMarriage(data, family.Id)) })}>Delete marriage</button></>}
-    </footer>
-    {editor && <FamilyEditor request={editor} close={() => setEditor(null)} />}
+    <MarriageMenubar families={data.Families} selected={family} personId={id} onSelect={setSelected} actionsRef={actionsRef}
+      onEditDates={() => { if (family) setEditor({ kind: "marriage", family, save: (updated) => setData({ ...data, Families: data.Families.map((item) => item.Id === updated.Id ? updated : item) }) }); }}
+      onDelete={() => { if (family) setEditor({ kind: "delete", family, save: () => setData(deleteMarriage(data, family.Id)) }); }} />
+    {editor && <FamilyEditor request={editor} close={() => setEditor(null)} onCloseFocus={editor.kind === "users" ? undefined : () => {
+      const trigger = actionsRef.current;
+      if (trigger?.disabled) trigger.closest("footer")?.focus();
+      else trigger?.focus();
+    }} />}
   </>;
 }

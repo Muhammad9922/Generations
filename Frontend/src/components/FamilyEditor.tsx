@@ -8,7 +8,7 @@ export type EditorRequest =
   | { kind: "delete"; family: FamilyCertificate; save: () => void };
 
 /** Radix supplies focus trapping, Escape dismissal and accessible dialog naming. */
-export default function FamilyEditor({ request, close }: { request: EditorRequest; close: () => void }) {
+export default function FamilyEditor({ request, close, onCloseFocus }: { request: EditorRequest; close: () => void; onCloseFocus?: () => void }) {
   const [users, setUsers] = useState(request.kind === "users" ? request.users : []);
   const [start, setStart] = useState(request.kind === "marriage" ? toInputDate(request.family.StartOfFamily) : "");
   const [end, setEnd] = useState(request.kind === "marriage" ? toInputDate(request.family.EndOfFamily) : "");
@@ -43,7 +43,7 @@ export default function FamilyEditor({ request, close }: { request: EditorReques
   }
   return (
     <Dialog.Root open onOpenChange={(open) => { if (!open) close(); }}>
-      <Dialog.Content maxWidth="560px">
+      <Dialog.Content maxWidth="560px" onCloseAutoFocus={onCloseFocus ? (event) => { event.preventDefault(); onCloseFocus(); } : undefined}>
         <Dialog.Title>{title}</Dialog.Title>
         <Dialog.Description size="2" mb="4">
           {request.kind === "users" ? "Rename or change birth date to update age. IDs remain unchanged. These edits are demo-only." :

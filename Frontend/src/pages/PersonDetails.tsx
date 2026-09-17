@@ -1,3 +1,5 @@
+import { Button } from "@radix-ui/themes";
+import { ArrowLeft } from "lucide-react";
 import FamilyView from "../components/FamilyView";
 import { Link, useParams } from "react-router";
 import type { Person } from "../helpers/GetUsers";
@@ -27,7 +29,9 @@ export default function PersonDetails({ people, loading, error, onRename }: Pers
   return (
     <main className="person-details">
       {/* Router links navigate without reloading App or its shared people data. */}
-      <Link to="/">← Back home</Link>
+      <Button asChild variant="soft" color="gray" highContrast size="3" radius="full">
+        <Link to="/"><ArrowLeft size={18} aria-hidden="true" />Back home</Link>
+      </Button>
       {/* Resolve loading and errors before not-found: an empty pending list is
           not evidence that the requested person does not exist. Live-region
           roles announce asynchronous status changes to assistive technology. */}
