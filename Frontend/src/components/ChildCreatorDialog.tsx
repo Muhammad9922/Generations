@@ -63,7 +63,8 @@ export default function ChildCreatorDialog({ primary, families, people, close, s
   }
 
   return <Dialog.Root open onOpenChange={(open) => { if (!open) close(); }}>
-    <Dialog.Content maxWidth="620px" className="child-dialog">
+    <Dialog.Content maxWidth="620px" className="family-dialog">
+      <span className="family-eyebrow">FAMILY CONNECTION</span>
       <Dialog.Title>Add child</Dialog.Title>
       <Dialog.Description size="2" mb="4">Choose {primary.Name}'s spouse, then enter the child’s details.</Dialog.Description>
       <form className="family-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>

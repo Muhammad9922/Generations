@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import MarriageMenubar from "./MarriageMenubar";
 import { Plus } from "lucide-react";
 import type { Person } from "../helpers/GetUsers";
-import { GetPersonDetails, deleteMarriage, newUser, otherSpouses, replaceUser, sortedChildren, withParents, type PersonDetailsData, type User } from "../helpers/GetPersonDetails";
+import { GetPersonDetails, deleteMarriage, otherSpouses, replaceUser, sortedChildren, withParents, type PersonDetailsData, type User } from "../helpers/GetPersonDetails";
 import FamilyPersonCard from "./FamilyPersonCard";
 import FamilyEditor, { type EditorRequest } from "./FamilyEditor";
 import ChildCreatorDialog from "./ChildCreatorDialog";
-import { createLocalId } from "../api/id.ts";
+import SpouseCreatorDialog from "./SpouseCreatorDialog";
+import ParentCreatorDialog from "./ParentCreatorDialog";
 
 /** Route-keyed prototype state. No mutations are sent to the backend. */
 export default function FamilyView({ id, people, onRename }: { id: string; people: Person[]; onRename: (id: string, name: string) => void }) {
@@ -19,6 +20,8 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
   const [focused, setFocused] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorRequest | null>(null);
   const [creatingChild, setCreatingChild] = useState(false);
+  const [creatingSpouse, setCreatingSpouse] = useState(false);
+  const [creatingParents, setCreatingParents] = useState(false);
   const [restoreMenuFocus, setRestoreMenuFocus] = useState(false);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const spousesHeading = useRef<HTMLHeadingElement>(null);
@@ -43,10 +46,6 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
   const card = (user: User, label: string, familyId?: string, focal = false) => <FamilyPersonCard key={`${focal ? "focal" : familyId ?? "person"}-${user.Id}`}
     user={user} label={label} familyId={familyId} highlighted={!!familyId && active === familyId}
     onHover={focal ? () => setHovered(null) : setHovered} onFocus={focal ? () => setFocused(null) : setFocused} onEdit={editUser} />;
-  const addSpouse = () => setEditor({ kind: "users", title: "Add spouse", users: [newUser(createLocalId("person"))], save: ([spouse]) => {
-    const marriage = { Id: createLocalId("marriage"), Spouse: [data.Person, spouse], Chidren: [] };
-    setData({ ...data, Families: [...data.Families, marriage] });
-  } });
   const openChildCreator = (trigger: HTMLButtonElement | null) => {
     returnFocus.current = trigger;
     setRestoreMenuFocus(true);
@@ -61,7 +60,7 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
     <div className="family-layout">
       <section><h2>Parents</h2><div className="parents-grid">
         {data.Parents ? data.Parents.map((user, index) => card(user, `Parent ${index + 1}`)) :
-          <button className="family-add" onClick={() => setEditor({ kind: "users", title: "Add both parents", users: [newUser(createLocalId("person")), newUser(createLocalId("person"))], save: (users) => setData(withParents(data, users)) })}><Plus />Add parents<span>Two parents, added together</span></button>}
+          <button className="family-add" onClick={() => setCreatingParents(true)}><Plus />Add parents<span>Select people or create both parents</span></button>}
       </div></section>
       <section><h2 ref={spousesHeading} tabIndex={-1}>Person & spouses</h2>{card(data.Person, "Selected person", active ?? undefined, true)}
         <div className="spouses-grid">{data.Families.map((family) => <div className="family-marriage" key={family.Id}>
@@ -71,7 +70,7 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
             onEditDates={(trigger) => openMarriageEditor({ kind: "marriage", family, save: (updated) => setData({ ...data, Families: data.Families.map((item) => item.Id === updated.Id ? updated : item) }) }, trigger)}
             onDelete={(trigger) => openMarriageEditor({ kind: "delete", family, save: () => setData(deleteMarriage(data, family.Id)) }, trigger)} />
         </div>)}</div>
-        <button className="family-add" onClick={addSpouse}><Plus />Add spouse</button>
+        <button className="family-add" onClick={() => setCreatingSpouse(true)}><Plus />Add spouse</button>
         <button className="family-add" onClick={() => openChildCreator(null)} disabled={!data.Families.some((family) => otherSpouses(family, id).length) && !people.some((person) => person.id !== id && person.gender !== data.Person.Gender)}><Plus />Add child<span>Choose an existing spouse or another eligible person</span></button>
       </section>
       <section><h2>Children <small>{children.length} · Oldest first</small></h2>
@@ -98,5 +97,7 @@ export default function FamilyView({ id, people, onRename }: { id: string; peopl
       const updatedFamily = { ...family, Chidren: [...(family.Chidren ?? []), child] };
       return { ...current, Families: exists ? current.Families.map((item) => item.Id === family.Id ? updatedFamily : item) : [...current.Families, updatedFamily, ...(childMarriage ? [childMarriage] : [])] };
     })} />}
+    {creatingSpouse && <SpouseCreatorDialog primary={data.Person} families={data.Families} people={people} close={() => setCreatingSpouse(false)} save={(family) => setData((current) => current ? { ...current, Families: [...current.Families, family] } : current)} />}
+    {creatingParents && <ParentCreatorDialog child={data.Person} people={people} close={() => setCreatingParents(false)} save={(parents) => setData((current) => current ? withParents(current, parents) : current)} />}
   </>;
 }

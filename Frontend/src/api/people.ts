@@ -4,7 +4,7 @@ import { createLocalId } from "./id.ts";
 export interface Person {
   id: string;
   name: string;
-  personFatherName: string;
+  personFatherName?: string;
   gender: User["Gender"];
   alive: boolean;
   dateOfBirth?: string;
@@ -26,6 +26,9 @@ const people: Person[] = [
   { personFatherName: "Bilal Ahmed", name: "Zaid Bilal", id: "id-4", gender: "Female", alive: true, dateOfBirth: "14-03-1980" },
   { personFatherName: "Rashid Khan", name: "Omar Rashid", id: "id-5", gender: "Male", alive: true, dateOfBirth: "14-03-1980" },
   { personFatherName: "Abdul Rauf", name: "Usman Abdul", id: "id-6", gender: "Male", alive: true, dateOfBirth: "14-03-1980" },
+  { name: "Fatima Noor", id: "id-7", gender: "Female", alive: true },
+  { personFatherName: "Khalid Hassan", name: "Ibrahim Khalid", id: "id-8", gender: "Male", alive: true, dateOfBirth: "09-07-1992" },
+  { personFatherName: "Nadia Omar", name: "Layla Omar", id: "id-9", gender: "Female", alive: false, dateOfBirth: "12-01-1978", dateOfDeath: "04-06-2021" },
 ];
 
 function validatePerson(params: Omit<CreatePersonParams, "name"> & { name?: string }): void {
@@ -35,11 +38,16 @@ function validatePerson(params: Omit<CreatePersonParams, "name"> & { name?: stri
   if (birth !== null && death !== null && death < birth) throw new Error("Death date cannot be before birth date.");
 }
 
-/** Query skeleton: replace its local return with GET /people. */
+/**
+ * Query skeleton: replace its local return with GET /people.
+ * This is the single source for all person selectors. Optional father and date
+ * fields intentionally remain absent when the backend has no value for them.
+ */
 export async function getAllPeople(): Promise<Person[]> { return people.map((person) => ({ ...person })); }
 
 /** Creation skeleton: replace the local append with POST /people; resolves the new ID. */
 export async function createPerson(params: CreatePersonParams): Promise<string> {
+  console.log("createPerson is a skeleton function; replace it with POST /people when the backend is connected.");
   if (!params.name.trim()) throw new Error("A person needs a name.");
   validatePerson(params);
   const id = createLocalId("person");

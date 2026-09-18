@@ -30,14 +30,14 @@ export function newUser(Id: string, Name = "", DateOfBirth = "", Gender: User["G
 export async function GetPersonDetails(id: string, people?: Person[]): Promise<PersonDetailsData | null> {
   const person = (people ?? await GetAllUsers()).find((item) => item.id === id);
   if (!person) return null;
-  const user = newUser(id, person.name, "14-03-1980");
+  const user = { ...newUser(id, person.name, person.dateOfBirth ?? "14-03-1980", person.gender), Alive: person.alive, DeateOfDeath: person.dateOfDeath ?? "" };
   const result: PersonDetailsData = { Person: user, Parents: null, Families: [] };
-  if (id === "id-2" || id === "id-6") return result;
+  if (id === "id-2" || id === "id-6" || id === "id-7") return result;
   result.Parents = [
-    newUser(`${id}-parent-1`, person.personFatherName, "02-06-1952"),
+    newUser(`${id}-parent-1`, person.personFatherName ?? "Unknown parent", "02-06-1952"),
     newUser(`${id}-parent-2`, "Amina Saleem", "19-11-1956", "Female"),
   ];
-  if (id === "id-5") return result;
+  if (id === "id-5" || id === "id-8") return result;
   result.Families.push({
     Id: `${id}-marriage-1`,
     Spouse: [user, newUser(`${id}-spouse-1`, "Sara Ahmed", "08-09-1983", "Female")],
