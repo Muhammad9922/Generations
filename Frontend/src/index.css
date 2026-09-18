@@ -1,111 +1,114 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "tailwindcss";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+/* The portaled overlay sits above page content. Dimming and blur provide visual
+   separation; KBarPositioner handles viewport positioning and dismissal. */
+.command-backdrop {
+  z-index: 100;
+  background: rgb(0 0 0 / 45%);
+  backdrop-filter: blur(4px);
 }
+/* Radix semantic tokens adapt the panel to the inherited light/dark theme.
+   Limit desktop width while allowing it to shrink inside Kbar's positioning area.
+   Clipping keeps animated/scrolling content within the rounded panel. */
+.command-palette {
+  width: 100%;
+  max-width: 640px;
+  overflow: hidden;
+  border: 1px solid var(--gray-6);
+  border-radius: 14px;
+  background: var(--color-panel-solid);
+  color: var(--gray-12);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 25%);
+}
+/* A flexible input leaves room for the search icon and close control on narrow
+   screens. Shortcut badges are visual hints; Kbar owns keyboard handling. */
+.command-search { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--gray-6); }
+.command-search input { width: 100%; min-width: 0; background: transparent; outline: none; font: inherit; }
+.command-search button, .command-result kbd { font-size: 12px; border: 1px solid var(--gray-6); border-radius: 4px; padding: 2px 6px; }
+.command-search button, .command-message button { cursor: pointer; }
+.command-message button { text-decoration: underline; }
+/* Group labels are quieter than selectable rows. KBarResults supplies the active
+   state for both pointer and keyboard navigation; do not rely only on :hover. */
+.command-section { padding: 12px 16px 6px; color: var(--gray-11); font-size: 12px; text-transform: uppercase; }
+.command-result { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; }
+.command-result[data-active="true"] { background: var(--accent-4); }
+/* Preserve icon size while long names wrap instead of overflowing the panel.
+   Secondary text, request feedback and the footer share a muted theme color. */
+.command-result svg { flex-shrink: 0; }
+.command-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.command-label small, .command-footer, .command-message { color: var(--gray-11); }
+.command-message { padding: 16px; }
+.command-footer { padding: 12px 16px; font-size: 12px; border-top: 1px solid var(--gray-6); }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
-}
+/* Person details: semantic Radix colors work in both appearances. */
+.person-details { max-width: 1500px; margin: auto; padding: clamp(20px, 4vw, 60px); min-height: 100vh; }
+.family-heading { margin: 34px 0; }
+.family-heading h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 650; letter-spacing: -.04em; margin: 8px 0; }
+.family-heading p { color: var(--gray-11); }
+.family-eyebrow { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--gray-11); }
+.family-notice { font-size: 12px; margin-top: 12px; }
+.family-layout { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(290px, 1.35fr) minmax(320px, 1.7fr); gap: 28px; align-items: start; }
+.family-layout section { min-width: 0; }
+.family-layout h2 { font-size: 17px; font-weight: 600; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.family-layout h2 small { color: var(--gray-11); font-size: 12px; font-weight: 400; }
+.parents-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.spouses-grid, .children-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.spouses-grid { margin-top: 16px; }
+.family-person { --family-color: var(--gray-6); display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; padding: 18px; text-align: left; border: 2px solid var(--family-color); border-radius: 16px; background: var(--color-panel-solid); color: var(--gray-12); cursor: pointer; transition: box-shadow 160ms ease, background 160ms ease; overflow-wrap: anywhere; }
+.family-person strong { font-size: 17px; font-weight: 600; line-height: 1.3; }
+.family-person > span:not(.family-card-top):not(.family-eyebrow), .family-person small { color: var(--gray-11); font-size: 12px; }
+.family-person small { margin-top: 8px; font-size: 10px; }
+.family-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--gray-10); }
+.family-avatar { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--gray-3); color: var(--gray-11); }
+.family-person[data-highlighted="true"] { box-shadow: 0 0 0 2px var(--family-color), 0 0 24px -5px var(--family-color); background: var(--gray-2); }
+.family-person:focus-visible, .family-add:focus-visible, .marriage-menu-trigger:focus-visible { outline: 3px solid var(--accent-9); outline-offset: 5px; }
+.family-add { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; width: 100%; padding: 20px 12px; margin-top: 16px; border: 1px dashed var(--gray-7); border-radius: 14px; color: var(--gray-11); cursor: pointer; font-size: 14px; }
+.family-add:hover:not(:disabled) { background: var(--gray-3); }
+.family-add span { width: 100%; font-size: 12px; text-align: center; }
+.parents-grid > .family-add { min-height: 260px; align-content: center; margin-top: 0; }
+.family-add:disabled { opacity: .5; cursor: not-allowed; }
+.family-empty { padding: 50px 20px; border: 1px solid var(--gray-5); border-radius: 16px; text-align: center; color: var(--gray-10); background: var(--gray-2); }
+.family-marriage { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.marriage-menubar { display: flex; align-self: flex-end; }
+.marriage-menu-trigger { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 500; padding: 10px 12px; border-radius: 7px; color: var(--gray-12); }
+.marriage-menu-trigger[data-highlighted], .marriage-menu-trigger[data-state="open"] { background: var(--accent-4); color: var(--accent-12); }
+.marriage-menu-trigger[data-disabled] { opacity: .45; cursor: not-allowed; }
+.marriage-menu-content { z-index: 50; min-width: 230px; max-width: min(360px, var(--radix-menubar-content-available-width)); max-height: var(--radix-menubar-content-available-height); overflow: auto; padding: 6px; border: 1px solid var(--gray-6); border-radius: 12px; background: var(--color-panel-solid); color: var(--gray-12); box-shadow: var(--shadow-5); }
+.marriage-menu-label { padding: 8px 10px; font-size: 12px; color: var(--gray-11); overflow-wrap: anywhere; }
+.marriage-menu-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; font-size: 13px; cursor: pointer; outline: none; user-select: none; overflow-wrap: anywhere; }
+.marriage-menu-item svg { flex-shrink: 0; }
+.marriage-menu-item[data-highlighted] { background: var(--accent-4); color: var(--accent-12); }
+.marriage-menu-item.family-danger[data-highlighted] { background: var(--red-4); color: var(--red-12); }
+.marriage-menu-item[data-disabled] { color: var(--gray-8); pointer-events: none; }
+.marriage-menu-separator { height: 1px; margin: 5px; background: var(--gray-6); }
+.family-danger, .family-error { color: var(--red-11); }
+.family-dialog { max-height: min(760px, calc(100vh - 32px)); overflow-y: auto; }
+.family-dialog .family-eyebrow { display: block; margin-bottom: 8px; }
+.family-dialog [data-radix-dialog-title] { letter-spacing: -.02em; }
+.family-form, .family-form fieldset { display: grid; gap: 14px; }
+.family-form fieldset { margin: 4px 0 0; border: 1px solid var(--gray-6); border-radius: 14px; padding: 18px; background: var(--gray-2); }
+.family-form legend { padding: 0 6px; color: var(--gray-11); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.family-form label { display: grid; gap: 6px; color: var(--gray-11); font-size: 12px; font-weight: 500; }
+.family-form input:not([type="checkbox"]), .family-form select, .family-form button[role="combobox"] { width: 100%; min-width: 0; min-height: 38px; border: 1px solid var(--gray-7); border-radius: 8px; padding: 8px 10px; background: var(--color-panel-solid); color: var(--gray-12); font: inherit; }
+.family-form button[role="combobox"] { display: flex; align-items: center; justify-content: space-between; text-align: left; cursor: pointer; }
+.family-form input:focus-visible, .family-form button[role="combobox"]:focus-visible { outline: 2px solid var(--accent-9); outline-offset: 2px; }
+.family-form input:disabled { background: var(--gray-3); color: var(--gray-10); cursor: not-allowed; }
+.family-form .family-check { display: flex; align-items: center; gap: 8px; }
+.family-form small { color: var(--gray-11); overflow-wrap: anywhere; }
+.child-spouse-fields { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--gray-6); border-radius: 12px; background: var(--color-panel-solid); }
+.child-spouse-fields strong { color: var(--gray-11); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+@media (max-width: 1050px) { .family-layout { grid-template-columns: 1fr; } .family-layout section { border-top: 1px solid var(--gray-5); padding-top: 20px; } }
+@media (max-width: 420px) { .spouses-grid, .children-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .family-person { transition: none; } }
+/* Cards carry their own action row, kept outside the card button so the card
+   itself stays a single accessible edit control. */
+.family-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.family-card > .family-person { flex: 1; }
+.family-card-actions { display: flex; gap: 8px; }
+.family-card-actions > button { flex: 1; min-width: 0; }
+.family-open, .family-remove { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--gray-6); border-radius: 10px; background: transparent; color: var(--gray-11); font-size: 12px; cursor: pointer; }
+.family-open:hover { border-color: var(--accent-7); background: var(--accent-2); color: var(--accent-11); }
+.family-remove:hover { border-color: var(--red-7); background: var(--red-2); color: var(--red-11); }
+.family-open:focus-visible, .family-remove:focus-visible, .family-unlink:focus-visible { outline: 3px solid var(--accent-9); outline-offset: 5px; }
+.family-unlink { margin-top: 16px; }
+.family-unlink:hover { border-color: var(--red-7); color: var(--red-11); }
