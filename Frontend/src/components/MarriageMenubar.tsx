@@ -8,11 +8,11 @@ interface Props {
   canAddChild: boolean;
   onAddChild: (trigger: HTMLButtonElement | null) => void;
   onEditDates: (trigger: HTMLButtonElement | null) => void;
-  onDelete: (trigger: HTMLButtonElement | null) => void;
+  onDelinkSpouse: (trigger: HTMLButtonElement | null) => void;
 }
 
 /** Actions target the adjacent marriage; dialogs open after menu focus closes. */
-export default function MarriageMenubar({ label, canAddChild, onAddChild, onEditDates, onDelete }: Props) {
+export default function MarriageMenubar({ label, canAddChild, onAddChild, onEditDates, onDelinkSpouse }: Props) {
   const actionsRef = useRef<HTMLButtonElement>(null);
   const pendingAction = useRef<((trigger: HTMLButtonElement | null) => void) | null>(null);
   return <Menubar.Root className="marriage-menubar" aria-label={`${label} controls`}>
@@ -34,8 +34,8 @@ export default function MarriageMenubar({ label, canAddChild, onAddChild, onEdit
             <CalendarDays size={16} aria-hidden="true" />Change dates…
           </Menubar.Item>
           <Menubar.Separator className="marriage-menu-separator" />
-          <Menubar.Item className="marriage-menu-item family-danger" onSelect={() => { pendingAction.current = onDelete; }}>
-            <Trash2 size={16} aria-hidden="true" />Delete marriage…
+          <Menubar.Item className="marriage-menu-item family-danger" onSelect={() => { pendingAction.current = onDelinkSpouse; }}>
+            <Trash2 size={16} aria-hidden="true" />Delink spouse…
           </Menubar.Item>
         </Menubar.Content>
       </Theme></Menubar.Portal>

@@ -82,12 +82,33 @@
 .marriage-menu-item[data-disabled] { color: var(--gray-8); pointer-events: none; }
 .marriage-menu-separator { height: 1px; margin: 5px; background: var(--gray-6); }
 .family-danger, .family-error { color: var(--red-11); }
+.family-dialog { max-height: min(760px, calc(100vh - 32px)); overflow-y: auto; }
+.family-dialog .family-eyebrow { display: block; margin-bottom: 8px; }
+.family-dialog [data-radix-dialog-title] { letter-spacing: -.02em; }
 .family-form, .family-form fieldset { display: grid; gap: 14px; }
-.family-form fieldset { border: 1px solid var(--gray-6); border-radius: 10px; padding: 16px; }
-.family-form label { display: grid; gap: 5px; font-size: 13px; }
-.family-form input:not([type="checkbox"]), .family-form select { width: 100%; min-width: 0; border: 1px solid var(--gray-7); border-radius: 6px; padding: 8px; background: var(--color-panel-solid); color: var(--gray-12); }
+.family-form fieldset { margin: 4px 0 0; border: 1px solid var(--gray-6); border-radius: 14px; padding: 18px; background: var(--gray-2); }
+.family-form legend { padding: 0 6px; color: var(--gray-11); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.family-form label { display: grid; gap: 6px; color: var(--gray-11); font-size: 12px; font-weight: 500; }
+.family-form input:not([type="checkbox"]), .family-form select, .family-form button[role="combobox"] { width: 100%; min-width: 0; min-height: 38px; border: 1px solid var(--gray-7); border-radius: 8px; padding: 8px 10px; background: var(--color-panel-solid); color: var(--gray-12); font: inherit; }
+.family-form button[role="combobox"] { display: flex; align-items: center; justify-content: space-between; text-align: left; cursor: pointer; }
+.family-form input:focus-visible, .family-form button[role="combobox"]:focus-visible { outline: 2px solid var(--accent-9); outline-offset: 2px; }
+.family-form input:disabled { background: var(--gray-3); color: var(--gray-10); cursor: not-allowed; }
 .family-form .family-check { display: flex; align-items: center; gap: 8px; }
 .family-form small { color: var(--gray-11); overflow-wrap: anywhere; }
+.child-spouse-fields { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--gray-6); border-radius: 12px; background: var(--color-panel-solid); }
+.child-spouse-fields strong { color: var(--gray-11); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 @media (max-width: 1050px) { .family-layout { grid-template-columns: 1fr; } .family-layout section { border-top: 1px solid var(--gray-5); padding-top: 20px; } }
 @media (max-width: 420px) { .spouses-grid, .children-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .family-person { transition: none; } }
+/* Cards carry their own action row, kept outside the card button so the card
+   itself stays a single accessible edit control. */
+.family-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.family-card > .family-person { flex: 1; }
+.family-card-actions { display: flex; gap: 8px; }
+.family-card-actions > button { flex: 1; min-width: 0; }
+.family-open, .family-remove { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--gray-6); border-radius: 10px; background: transparent; color: var(--gray-11); font-size: 12px; cursor: pointer; }
+.family-open:hover { border-color: var(--accent-7); background: var(--accent-2); color: var(--accent-11); }
+.family-remove:hover { border-color: var(--red-7); background: var(--red-2); color: var(--red-11); }
+.family-open:focus-visible, .family-remove:focus-visible, .family-unlink:focus-visible { outline: 3px solid var(--accent-9); outline-offset: 5px; }
+.family-unlink { margin-top: 16px; }
+.family-unlink:hover { border-color: var(--red-7); color: var(--red-11); }
