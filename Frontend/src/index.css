@@ -100,3 +100,15 @@
 @media (max-width: 1050px) { .family-layout { grid-template-columns: 1fr; } .family-layout section { border-top: 1px solid var(--gray-5); padding-top: 20px; } }
 @media (max-width: 420px) { .spouses-grid, .children-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .family-person { transition: none; } }
+/* Cards carry their own action row, kept outside the card button so the card
+   itself stays a single accessible edit control. */
+.family-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.family-card > .family-person { flex: 1; }
+.family-card-actions { display: flex; gap: 8px; }
+.family-card-actions > button { flex: 1; min-width: 0; }
+.family-open, .family-remove { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--gray-6); border-radius: 10px; background: transparent; color: var(--gray-11); font-size: 12px; cursor: pointer; }
+.family-open:hover { border-color: var(--accent-7); background: var(--accent-2); color: var(--accent-11); }
+.family-remove:hover { border-color: var(--red-7); background: var(--red-2); color: var(--red-11); }
+.family-open:focus-visible, .family-remove:focus-visible, .family-unlink:focus-visible { outline: 3px solid var(--accent-9); outline-offset: 5px; }
+.family-unlink { margin-top: 16px; }
+.family-unlink:hover { border-color: var(--red-7); color: var(--red-11); }

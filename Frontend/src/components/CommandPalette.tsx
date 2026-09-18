@@ -69,7 +69,7 @@ export default function CommandPalette({ actions, loading, error, onRetry }: Com
               </div>
             )}
           />
-          <footer className="command-footer">↑ ↓ navigate · Enter select · Esc close · Sample people data</footer>
+          <footer className="command-footer">↑ ↓ navigate · Enter select · Esc close</footer>
         </KBarAnimator>
       </KBarPositioner>
       </Theme>

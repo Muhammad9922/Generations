@@ -1,77 +1,45 @@
-import { dateValue, type User } from "../helpers/GetPersonDetails.ts";
-import { createLocalId } from "./id.ts";
+import {
+  ENDPOINTS, type CreatePersonRequest, type CreatePersonResponse, type ListPeopleResponse, type Person,
+  type UpdatePersonRequest, type UpdatePersonResponse,
+} from "./contracts.ts";
+import { request } from "./http.ts";
+import { withContractLog } from "./contractLog.ts";
+import type { User } from "../helpers/personModel.ts";
 
-export interface Person {
-  id: string;
-  name: string;
-  personFatherName?: string;
-  gender: User["Gender"];
-  alive: boolean;
-  dateOfBirth?: string;
-  dateOfDeath?: string;
-}
-export interface CreatePersonParams {
-  name: string;
-  gender: User["Gender"];
-  alive: boolean;
-  date_of_birth?: string | null;
-  date_of_death?: string | null;
-}
-export interface UpdatePersonParams extends Partial<CreatePersonParams> { id: string; }
+export type { Person } from "./contracts.ts";
 
-const people: Person[] = [
-  { personFatherName: "Muhammad Saleem", name: "Mahammad Muhayodin", id: "id-1", gender: "Male", alive: true, dateOfBirth: "14-03-1980" },
-  { personFatherName: "Tariq Mahmood", name: "Hamza Tariq", id: "id-2", gender: "Male", alive: true, dateOfBirth: "14-03-1980" },
-  { personFatherName: "Abdul Rahman", name: "Usman Abdul", id: "id-3", gender: "Male", alive: true, dateOfBirth: "14-03-1980" },
-  { personFatherName: "Bilal Ahmed", name: "Zaid Bilal", id: "id-4", gender: "Female", alive: true, dateOfBirth: "14-03-1980" },
-  { personFatherName: "Rashid Khan", name: "Omar Rashid", id: "id-5", gender: "Male", alive: true, dateOfBirth: "14-03-1980" },
-  { personFatherName: "Abdul Rauf", name: "Usman Abdul", id: "id-6", gender: "Male", alive: true, dateOfBirth: "14-03-1980" },
-  { name: "Fatima Noor", id: "id-7", gender: "Female", alive: true },
-  { personFatherName: "Khalid Hassan", name: "Ibrahim Khalid", id: "id-8", gender: "Male", alive: true, dateOfBirth: "09-07-1992" },
-  { personFatherName: "Nadia Omar", name: "Layla Omar", id: "id-9", gender: "Female", alive: false, dateOfBirth: "12-01-1978", dateOfDeath: "04-06-2021" },
-];
-
-function validatePerson(params: Omit<CreatePersonParams, "name"> & { name?: string }): void {
-  const birth = params.date_of_birth ? dateValue(params.date_of_birth) : null;
-  const death = params.date_of_death ? dateValue(params.date_of_death) : null;
-  if ((params.date_of_birth && birth === null) || (params.date_of_death && death === null)) throw new Error("Enter valid calendar dates.");
-  if (birth !== null && death !== null && death < birth) throw new Error("Death date cannot be before birth date.");
+/** `GET /people` — the single source for the palette and every selector. */
+export async function getAllPeople(signal?: AbortSignal): Promise<Person[]> {
+  return withContractLog("GET /people", { payload: {} }, async () => {
+    const body = await request<ListPeopleResponse>(ENDPOINTS.people, { signal });
+    return body.people;
+  }, (result) => ({ count: result.length }));
 }
 
 /**
- * Query skeleton: replace its local return with GET /people.
- * This is the single source for all person selectors. Optional father and date
- * fields intentionally remain absent when the backend has no value for them.
+ * `CreatePerson(User)` creates a person — a spouse, a child, or a parent — and
+ * resolves the saved record, including the ID the API assigned.
  */
-export async function getAllPeople(): Promise<Person[]> { return people.map((person) => ({ ...person })); }
-
-/** Creation skeleton: replace the local append with POST /people; resolves the new ID. */
-export async function createPerson(params: CreatePersonParams): Promise<string> {
-  console.log("createPerson is a skeleton function; replace it with POST /people when the backend is connected.");
-  if (!params.name.trim()) throw new Error("A person needs a name.");
-  validatePerson(params);
-  const id = createLocalId("person");
-  people.push({ id, name: params.name.trim(), personFatherName: "", gender: params.gender, alive: params.alive, dateOfBirth: params.date_of_birth ?? "", dateOfDeath: params.alive ? "" : params.date_of_death ?? "" });
-  return id;
+export async function createPerson(person: CreatePersonRequest, signal?: AbortSignal): Promise<CreatePersonResponse> {
+  return withContractLog("CreatePerson", { payload: person }, () =>
+    request<CreatePersonResponse>(ENDPOINTS.people, { method: "POST", body: person, signal }),
+    (result) => ({ id: result.Id }));
 }
 
-/** Update skeleton: replace the local patch with PATCH /people/:id. */
-export async function updatePerson(params: UpdatePersonParams): Promise<void> {
-  const index = people.findIndex((person) => person.id === params.id);
-  if (index < 0) throw new Error("Person not found.");
-  const current = people[index];
-  const next = { ...current, ...params, dateOfBirth: params.date_of_birth ?? current.dateOfBirth, dateOfDeath: params.date_of_death ?? current.dateOfDeath };
-  validatePerson({ name: next.name, gender: next.gender, alive: next.alive, date_of_birth: next.dateOfBirth, date_of_death: next.dateOfDeath });
-  people[index] = next;
+/**
+ * `PATCH /people/:id` saves the editable profile of any person on a family page:
+ * the selected person, a parent, a spouse or a child. Only these fields are ever
+ * sent, so a death date is cleared for anyone still alive.
+ */
+export async function updateUserDetails(user: User, signal?: AbortSignal): Promise<UpdatePersonResponse> {
+  const update: UpdatePersonRequest = {
+    Name: user.Name,
+    Gender: user.Gender,
+    Alive: user.Alive,
+    DateOfBirth: user.DateOfBirth || null,
+    DateOfDeath: user.Alive ? null : user.DeateOfDeath || null,
+  };
+  return withContractLog("PATCH /people/:id", { id: user.Id, fields: Object.keys(update), payload: update }, () =>
+    request<UpdatePersonResponse>(ENDPOINTS.person(user.Id), { method: "PATCH", body: update, signal }),
+    (result) => ({ id: result.Id }));
 }
-
-/** Internal lookup used by marriage validation until the backend owns this rule. */
-export function registerPeopleForMarriageValidation(users: User[]): void {
-  for (const user of users) {
-    const existing = people.find((person) => person.id === user.Id);
-    if (existing) Object.assign(existing, { dateOfBirth: user.DateOfBirth, dateOfDeath: user.DeateOfDeath, alive: user.Alive, gender: user.Gender, name: user.Name });
-    else people.push({ id: user.Id, name: user.Name, personFatherName: "", gender: user.Gender, alive: user.Alive, dateOfBirth: user.DateOfBirth, dateOfDeath: user.DeateOfDeath });
-  }
-}
-
-export function personForMarriageValidation(id: string): Person | undefined { return people.find((person) => person.id === id); }
