@@ -109,12 +109,33 @@ Every group in the tree is the result of a marriage. There is no standalone pare
 
 `CreateMarriage`, `DeleteMarriage`, `RemoveChild`, `AddChildren` and `CreatePerson` are also the operation names shown in the contract log.
 
+## Relationships are derived, not stored
+
+There is no relationship endpoint, and the UI does not need one for the labels
+it shows — they follow from the payloads above:
+
+- a person's siblings are the other `Children` of their `ParentsMarriage`;
+- each parent's `ParentsMarriage` carries the grandparents, and its `Children`
+  carry the uncles and aunts;
+- an uncle's or aunt's `Marriages` carry their cousins, and a sibling's carry
+  their nieces and nephews.
+
+`src/api/relations.ts` walks that in three rounds — the person, then the
+parents, then the siblings and uncles together — rather than one request per
+relative, and `src/helpers/relations.ts` turns the payloads into labelled
+relatives. Someone is only ever labelled by their closest relation to the person
+being read, so an inconsistent record cannot list the same person twice, or as
+their own relative. Only blood relations are reported: the spouse of an uncle is
+not an aunt.
+
 ## Where the pieces live
 
 - `src/api/http.ts` — the only module that calls `fetch`: base URL, JSON, status codes turned into `ApiError` with the API's own message, cancellation passed through.
 - `src/api/contracts.ts` — every request and response interface above, plus the endpoint paths.
 - `src/api/people.ts`, `marriages.ts`, `family.ts` — one typed function per endpoint.
+- `src/api/relations.ts` — composes `GET /people/:id` into one person's extended family; it adds no endpoint of its own.
 - `src/helpers/personModel.ts` — the wire model and the pure view helpers (`otherSpouses`, `sortedChildren`, `isYoungerThan`, date conversion, `familyColor`). It holds no state and makes no requests.
+- `src/helpers/relations.ts` — labels those payloads as parents, siblings, uncles, aunts, cousins and the rest. Pure, and tested against a hand-built three-generation family.
 - `src/helpers/personDrafts.ts` — maps a dialog's draft onto `CreatePersonRequest`.
 
 ## Debug logging

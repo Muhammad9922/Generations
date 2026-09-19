@@ -30,7 +30,7 @@ person with two marriages and two children in each".
 
 ## 1. Home page and command palette
 
-- [ ] Home shows "Welcome To Generations!" with four cards.
+- [ ] Home shows "Welcome To Generations!" with five cards.
 - [ ] "List Of Singles" is **disabled** and labelled "(coming soon)"; **New Family** is enabled and opens `/families/new`.
 - [ ] "Search User" opens the palette; "Dark Mode" / "Light Mode" toggles the theme and the label flips.
 - [ ] `Ctrl+K` / `⌘K` opens the palette from Home **and** from a person page.
@@ -207,4 +207,22 @@ The Home **New Family** card opens `/families/new`: the person page's layout bef
 - [ ] Creating someone logs `CreatePerson`, then the app navigates to `/people/<new id>` — that new person's own page, with everything enabled and no marriages or parents yet.
 - [ ] The new person appears in the command palette without a full page reload.
 - [ ] Reloading `/people/<new id>` (or pasting it in a new tab) still resolves.
+
+## 17. Relationships
+
+The Home **Relationships** card opens `/relationships`, where one person's extended family is read from the same records as the person pages.
+
+- [ ] The card is enabled, and `/relationships` shows a picker rather than a report until someone is chosen.
+- [ ] Choosing a person navigates to `/relationships/<id>`, and that URL can be reloaded or pasted into another tab.
+- [ ] The heading names the person; **Person page** returns to their own page and **Back home** to the cards.
+- [ ] Only the relations that person actually has appear, nearest first: Parents, Spouses, Children, Siblings, Half-siblings, Grandparents, Uncles, Aunts, Nieces, Nephews, Cousins.
+- [ ] Every relation chip shows its count, including **0** for the ones this person has none of — and the chip is still clickable.
+- [ ] Turning a chip off removes that section and lowers the summary; **Clear filters** appears only once a filter is active and restores everything.
+- [ ] **Gender**, **Living** and **Name** narrow the cards, and the summary reads "N of M relatives shown".
+- [ ] **Sort by** reorders within each section — Closest relation, Name, Oldest first, Youngest first — and a person with no recorded birth date stays last in both directions.
+- [ ] Cards read "Open <name>, <relation>", the eyebrow names the relation, and cousins, nieces/nephews and uncles/aunts also say **via <the relative they come through>**.
+- [ ] Clicking a card opens that person's page, where the same link can be checked from the other side.
+- [ ] A person with nobody linked shows "No relatives are recorded for … yet"; filters that exclude everyone show "No relatives match these filters."
+- [ ] `/relationships/<unknown id>` shows "Person not found", not a crash or an empty report.
+- [ ] Relations by marriage are **not** listed: the wife of an uncle or of a sibling is not reported as an aunt or a sibling.
 
