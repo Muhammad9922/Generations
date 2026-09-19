@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Per-machine environment overrides. `.env` holds the shared settings and is
+# committed; anything ending .local is yours and stays out of the repository.
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
