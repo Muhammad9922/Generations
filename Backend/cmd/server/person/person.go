@@ -9,4 +9,5 @@ import (
 func RegisterPersonRoutes(mux *http.ServeMux, driver neo4j.Driver) {
 	mux.HandleFunc("GET /people", handleGetAllPeople(driver))
 	mux.HandleFunc("GET /people/{id}", handleGetPerson(driver))
+	mux.HandleFunc("POST /people", handleCreatePerson(driver))
 }
