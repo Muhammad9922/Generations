@@ -16,6 +16,46 @@ type QueryResponse struct {
 	End   person.DateProper
 }
 
+// CheckMarriageExistence reports whether a marriage with this id exists.
+//
+// It mirrors person.CheckPersonExistence so the HTTP layer can answer an unknown
+// id with a clean 404 instead of the query-level "No Record Found" text that
+// GetMarriageFromMarriageId returns for a missing record.
+func CheckMarriageExistence(ctx context.Context, driver neo4j.Driver, id string) (bool, error) {
+	const query = `
+	MATCH (m:Marriage {id: $id})
+	RETURN count(m) > 0 AS exists
+	`
+
+	result, err := neo4j.ExecuteQuery(
+		ctx,
+		driver,
+		query,
+		map[string]any{"id": id},
+		neo4j.EagerResultTransformer,
+	)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to check marriage existence: %w", err)
+	}
+
+	if len(result.Records) == 0 {
+		return false, nil
+	}
+
+	rawExists, found := result.Records[0].Get("exists")
+	if !found {
+		return false, nil
+	}
+
+	exists, ok := rawExists.(bool)
+	if !ok {
+		return false, fmt.Errorf("unexpected return type for 'exists': %T", rawExists)
+	}
+
+	return exists, nil
+}
+
 func GetMarriageFromMarriageId(ctx context.Context, driver neo4j.Driver, id string) ([]QueryResponse, error) {
 	const query = `
 	MATCH (m: Marriage {id: $id})
