@@ -107,8 +107,16 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 	}
 
 	if params.DateOfBirth != "" {
+		// A create takes dates in DD-MM-YYYY only. IsValid checks that shape but
+		// is regex-only, so 31-02-2000 used to slip through and fail later inside
+		// time.Parse with "day out of range"; ParseTime rejects a day that does
+		// not exist in that month.
 		if !params.DateOfBirth.IsValid() {
 			return "", "", errors.New("The Date Of Birth Must Be In DD-MM-YYYY Format")
+		}
+
+		if _, ok := params.DateOfBirth.ParseTime(); !ok {
+			return "", "", fmt.Errorf("The Date Of Birth Is Not A Day That Exists: %v", params.DateOfBirth)
 		}
 	}
 
@@ -120,6 +128,10 @@ func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson)
 
 		if !params.DateOfDeath.IsValid() {
 			return "", "", errors.New("The Date Of Death Must Be In DD-MM-YYYY Format")
+		}
+
+		if _, ok := params.DateOfDeath.ParseTime(); !ok {
+			return "", "", fmt.Errorf("The Date Of Death Is Not A Day That Exists: %v", params.DateOfDeath)
 		}
 
 		// Date Of Death Must Be After Date Of Birth
