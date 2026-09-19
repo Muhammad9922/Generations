@@ -89,7 +89,7 @@ export default function FamilyView({ id, people, onPeopleChanged }: Props) {
   } });
   const card = (user: User, label: string, familyId?: string, focal = false, removable = false) => <FamilyPersonCard key={`${focal ? "focal" : familyId ?? "person"}-${user.id}`}
     user={user} label={label} familyId={familyId} highlighted={!!familyId && active === familyId}
-    onHover={focal ? () => setHovered(null) : setHovered} onFocus={focal ? () => setFocused(null) : setFocused} onEdit={editUser}
+    onHover={focal ? () => setHovered(null) : setHovered} onFocus={focal ? () => setFocused(null) : setFocused} onPrimary={editUser}
     onOpen={focal ? undefined : openPerson}
     onRemoveChild={removable && familyId ? (child, trigger) => openConfirm({
       title: "Remove child?",
