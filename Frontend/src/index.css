@@ -139,3 +139,26 @@
 .family-open:focus-visible, .family-remove:focus-visible, .family-unlink:focus-visible { outline: 3px solid var(--accent-9); outline-offset: 5px; }
 .family-unlink { margin-top: 16px; }
 .family-unlink:hover { border-color: var(--red-7); color: var(--red-11); }
+/* Relationships: the extended family of one person, grouped by kinship. The
+   filter bar carries .family-form as well, so its fields keep the same styling
+   as the dialogs rather than introducing a second set of control styles. */
+.relations-toolbar { display: flex; flex-wrap: wrap; gap: 12px; }
+.relations-picker { max-width: 460px; margin-top: 4px; }
+.relations-filters { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 28px; padding: 18px; border: 1px solid var(--gray-6); border-radius: 16px; background: var(--gray-2); }
+.relations-kinds { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.relations-kind { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--gray-6); border-radius: 999px; background: var(--color-panel-solid); color: var(--gray-11); font-size: 12px; cursor: pointer; }
+.relations-kind span { color: var(--gray-10); font-size: 11px; }
+.relations-kind[aria-pressed="true"] { border-color: var(--accent-8); background: var(--accent-4); color: var(--accent-12); }
+.relations-kind[aria-pressed="true"] span { color: var(--accent-11); }
+.relations-kind:hover { border-color: var(--accent-7); }
+.relations-kind:focus-visible, .relations-clear:focus-visible, .relations-retry:focus-visible { outline: 3px solid var(--accent-9); outline-offset: 3px; }
+.relations-clear, .relations-retry { justify-self: start; align-self: end; padding: 9px 14px; border: 1px solid var(--gray-6); border-radius: 8px; background: transparent; color: var(--gray-11); font-size: 12px; cursor: pointer; }
+.relations-clear:hover, .relations-retry:hover { border-color: var(--accent-7); color: var(--accent-11); }
+.relations-retry { margin-left: 8px; padding: 4px 10px; }
+.relations-summary { margin-top: 20px; color: var(--gray-11); font-size: 12px; }
+.relations-section { margin-top: 30px; }
+.relations-section h2 { font-size: 17px; font-weight: 600; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.relations-section h2 small { color: var(--gray-11); font-size: 12px; font-weight: 400; }
+.relations-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 16px; }
+.relations-empty { margin-top: 26px; font-size: 20px; font-weight: 600; }
+@media (max-width: 420px) { .relations-grid { grid-template-columns: 1fr; } }
