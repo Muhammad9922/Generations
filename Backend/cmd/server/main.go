@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	marriageRouter "github.com/Muhammad9922/Generations/cmd/server/marriage"
 	personRouter "github.com/Muhammad9922/Generations/cmd/server/person"
@@ -37,12 +38,27 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /health", handleHealth)
+
 	// Both routers register bare paths — /people, /marriages, … — because the
 	// Vite dev proxy strips the /api prefix the frontend calls before the request
 	// arrives (API_SCOPE.md §2).
 	personRouter.RegisterPersonRoutes(mux, driver)
 	marriageRouter.RegisterMarriageRoutes(mux, driver)
 
+	// Timeouts are set explicitly: http.ListenAndServe's defaults are unlimited,
+	// which leaves a stalled client holding a connection for as long as it likes.
+	// The write timeout is generous because a person's certificate is composed
+	// from several graph round trips.
+	server := &http.Server{
+		Addr:              listenAddress,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+
 	log.Printf("API listening on %s (database %s)", listenAddress, databaseURI)
-	log.Fatal(http.ListenAndServe(listenAddress, mux))
+	log.Fatal(server.ListenAndServe())
 }
