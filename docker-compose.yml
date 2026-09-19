@@ -1,0 +1,43 @@
+# Two containers: the Go API, and the nginx-served frontend that proxies /api to
+# it. The graph database is not started here — point NEO4J_URI at the instance
+# you already run:
+#
+#   docker compose up --build
+#   docker compose up --build -e NEO4J_URI=bolt://host.docker.internal:7687
+#
+# Then open http://localhost:8081. The API is also published on :8080 for direct
+# calls; change API_PORT if that port is taken (the Vite dev server, for one).
+name: generations
+
+services:
+  api:
+    build: ./Backend
+    environment:
+      # Same default the binary falls back to, so compose and `go run` reach the
+      # same graph. Point it elsewhere for another instance:
+      #   NEO4J_URI=bolt://host.docker.internal:7687 docker compose up --build
+      NEO4J_URI: ${NEO4J_URI:-bolt://192.168.0.133:7687}
+      API_ADDR: ":8080"
+    ports:
+      - "${API_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  web:
+    build: ./Frontend
+    environment:
+      # nginx proxies /api here. No trailing slash.
+      API_UPSTREAM: http://api:8080
+    ports:
+      - "${WEB_PORT:-8081}:80"
+    depends_on:
+      api:
+        # Wait for the API to answer before taking traffic, so the first page
+        # load does not race the server's start.
+        condition: service_healthy
+    restart: unless-stopped

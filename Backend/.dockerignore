@@ -1,0 +1,9 @@
+# Keep the build context to the sources the server compiles.
+.git
+.gitignore
+bin
+*.log
+
+# Tests are never compiled into the binary.
+*_test.go
+**/*_test.go

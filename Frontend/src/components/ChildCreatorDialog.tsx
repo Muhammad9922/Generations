@@ -4,6 +4,7 @@ import { addChild, createMarriage } from "../api/marriages.ts";
 import type { Person } from "../api/contracts.ts";
 import { ageLabel, isYoungerThan, newUser, oppositeGender, personToUser, reverseDate, toInputDate, type FamilyCertificate, type User } from "../helpers/personModel.ts";
 import { createPersonFromDraft } from "../helpers/personDrafts.ts";
+import PersonPicker from "./PersonPicker";
 
 type SpouseMode = "none" | "existing" | "new";
 const CREATE_NEW = "__create_new__";
@@ -101,22 +102,13 @@ export default function ChildCreatorDialog({ primary, marriages, people, close, 
       <Dialog.Description size="2" mb="4">Choose {primary.name}'s spouse, then the child: pick someone younger than both of them, or create a new person.</Dialog.Description>
       <form className="family-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <label>Other parent
-          <Select.Root value={parentId} onValueChange={setParentId}><Select.Trigger placeholder="Select a spouse" />
-            <Select.Content>{existingSpouses.length > 0 && <Select.Group><Select.Label>Existing spouses</Select.Label>{existingSpouses.map((person) => <Select.Item key={person.id} value={person.id}>{person.name}</Select.Item>)}</Select.Group>}
-              {existingSpouses.length > 0 && selectablePeople.length > 0 && <Select.Separator />}
-              {selectablePeople.length > 0 && <Select.Group><Select.Label>Other eligible people</Select.Label>{selectablePeople.map((person) => <Select.Item key={person.id} value={person.id}>{person.name}</Select.Item>)}</Select.Group>}
-            </Select.Content>
-          </Select.Root>
+          <PersonPicker label="Other parent" value={parentId} onChange={setParentId} placeholder="Select a spouse"
+            groups={[{ label: "Existing spouses", people: existingSpouses }, { label: "Other eligible people", people: selectablePeople }]} />
         </label>
         {selectedParent && <fieldset><legend>Child</legend>
           <label>Child
-            <Select.Root value={childSelection} onValueChange={setChildSelection}><Select.Trigger placeholder="Select a person" />
-              <Select.Content>
-                {childChoices.length > 0 && <Select.Group><Select.Label>Younger than both spouses</Select.Label>{childChoices.map((person) => <Select.Item key={person.id} value={person.id}>{person.name}</Select.Item>)}</Select.Group>}
-                <Select.Separator />
-                <Select.Item value={CREATE_NEW}>Create new person</Select.Item>
-              </Select.Content>
-            </Select.Root>
+            <PersonPicker label="Child" value={childSelection} onChange={setChildSelection} placeholder="Select a person"
+              groups={[{ label: "Younger than both spouses", people: childChoices }]} extras={[{ value: CREATE_NEW, label: "Create new person" }]} />
           </label>
           {selectedChild && <small>{selectedChild.name} · {ageLabel(selectedChild)} · born {selectedChild.dateOfBirth || "unknown"}</small>}
           {creatingChild && <>
@@ -129,7 +121,7 @@ export default function ChildCreatorDialog({ primary, marriages, people, close, 
         </fieldset>}
         {childGender && <fieldset><legend>Spouse for this child</legend>
           <label>Add a spouse for this child<Select.Root value={spouseMode} onValueChange={(value) => setSpouseMode(value as SpouseMode)}><Select.Trigger /> <Select.Content><Select.Item value="none">No spouse</Select.Item><Select.Item value="existing">Choose existing person</Select.Item><Select.Item value="new">Create new person</Select.Item></Select.Content></Select.Root></label>
-          {spouseMode === "existing" && <label>Existing spouse<Select.Root value={existingChildSpouseId} onValueChange={setExistingChildSpouseId}><Select.Trigger placeholder="Select a person" /><Select.Content>{childSpouseOptions.map((person) => <Select.Item key={person.id} value={person.id}>{person.name}</Select.Item>)}</Select.Content></Select.Root></label>}
+          {spouseMode === "existing" && <label>Existing spouse<PersonPicker label="Existing spouse" value={existingChildSpouseId} onChange={setExistingChildSpouseId} placeholder="Select a person" groups={[{ people: childSpouseOptions }]} /></label>}
           {spouseMode === "new" && <div className="child-spouse-fields"><strong>New spouse</strong><label>Gender<input value={oppositeGender(childGender)} disabled /></label><label>Name<input required value={newChildSpouse.name} onChange={(event) => updateNewSpouse({ name: event.target.value })} /></label><label>Date of birth (optional)<input type="date" value={toInputDate(newChildSpouse.dateOfBirth)} onChange={(event) => updateNewSpouse({ dateOfBirth: reverseDate(event.target.value) })} /></label><label className="family-check"><input type="checkbox" checked={newChildSpouse.alive} onChange={(event) => updateNewSpouse({ alive: event.target.checked, dateOfDeath: event.target.checked ? "" : newChildSpouse.dateOfDeath })} />Alive</label><label>Date of death (optional)<input type="date" value={toInputDate(newChildSpouse.dateOfDeath)} onChange={(event) => updateNewSpouse({ dateOfDeath: reverseDate(event.target.value), alive: event.target.value ? false : newChildSpouse.alive })} /></label></div>}
         </fieldset>}
         {childGender && spouseMode !== "none" && <fieldset><legend>Child's marriage dates</legend><label>Start date (optional)<input type="date" value={toInputDate(childMarriageStart)} onChange={(event) => setChildMarriageStart(reverseDate(event.target.value))} /></label><label>End date (optional)<input type="date" value={toInputDate(childMarriageEnd)} onChange={(event) => setChildMarriageEnd(reverseDate(event.target.value))} /></label></fieldset>}

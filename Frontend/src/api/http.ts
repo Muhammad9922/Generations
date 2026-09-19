@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./contracts.ts";
+import { apiBaseUrl } from "../config/env.ts";
 
 /** A failed request, carrying the HTTP status and the message the API sent. */
 export class ApiError extends Error {
@@ -47,14 +47,15 @@ interface RequestOptions {
 }
 
 /**
- * The only place that speaks HTTP: one base URL, JSON in and out, status codes
- * turned into `ApiError`, and cancellation passed straight through so a caller
- * can drop a response it no longer wants.
+ * The only place that speaks HTTP: one base URL (from `VITE_API_BASE_URL`, see
+ * `src/config/env.ts`), JSON in and out, status codes turned into `ApiError`,
+ * and cancellation passed straight through so a caller can drop a response it no
+ * longer wants.
  */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`${apiBaseUrl}${path}`, {
       method: options.method ?? "GET",
       headers: options.body === undefined ? undefined : { "Content-Type": "application/json" },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),

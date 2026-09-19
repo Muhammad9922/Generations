@@ -1,0 +1,12 @@
+# Keep the build context to the sources the bundle is built from. node_modules
+# is installed inside the image instead, so a host install of another platform
+# cannot leak in.
+node_modules
+dist
+.git
+.gitignore
+*.log
+
+# Per-machine overrides stay out; .env is committed and supplies the defaults.
+.env.local
+.env.*.local

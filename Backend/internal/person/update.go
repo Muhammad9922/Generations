@@ -4,10 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
+// UpdateUser is a partial profile edit. Every field is a pointer so that an
+// omitted field can keep its stored value:
+//
+//	nil        → the field was not sent, leave it alone
+//	&"" (dates)→ the caller asked to clear the date
+//	&value     → store the new value
+//
+// A date has no "absent" spelling of its own once it is decoded into a bare
+// DateProper, which is exactly why the clear case needs the empty pointer.
 type UpdateUser struct {
 	Name        *string
 	DateOfBirth *DateProper
@@ -20,6 +30,22 @@ func Ptr[T any](v T) *T {
 	return &v
 }
 
+// parseUpdateDate validates one incoming date. The empty string is the clear
+// sentinel and passes straight through; every other value must be a real
+// calendar day in DD-MM-YYYY.
+func parseUpdateDate(field string, value DateProper) (DateProper, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	parsed, err := ParseDateProper(string(value))
+	if err != nil {
+		return "", fmt.Errorf("%w: invalid %s: %v", ErrInvalidUpdate, field, err)
+	}
+
+	return parsed, nil
+}
+
 func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update UpdateUser) (string, bool, error) {
 	props := make(map[string]any)
 
@@ -28,65 +54,118 @@ func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update Up
 	}
 
 	if update.Name != nil {
-		if *update.Name == "" {
-			return "", false, fmt.Errorf("Invalid Name Provided: %s", *update.Name)
+		// Trimmed for the same reason as on create: a name of only spaces would
+		// render as a blank card.
+		trimmed := strings.TrimSpace(*update.Name)
+		if trimmed == "" {
+			return "", false, fmt.Errorf("%w: name must not be empty", ErrInvalidUpdate)
 		}
-		props["name"] = *update.Name
-	}
-
-	if update.DateOfBirth != nil {
-		if update.DateOfBirth != nil && !update.DateOfBirth.IsValid() {
-			return "", false, errors.New("Invalid Date Of Birth Provided")
-		}
-		props["date_of_birth"] = *update.DateOfBirth
+		props["name"] = trimmed
 	}
 
 	if update.Gender != nil {
-		props["gender"] = *update.Gender // Fixed *& pointer dereference bug
+		if !update.Gender.IsValid() {
+			return "", false, fmt.Errorf("%w: %q is not a gender this app stores", ErrInvalidUpdate, *update.Gender)
+		}
+		props["gender"] = *update.Gender
+	}
+
+	// Dates are parsed into the canonical DD-MM-YYYY representation up front.
+	//
+	// The previous implementation validated the YYYY-MM-DD value returned by
+	// NormalizeDate with DateProper.IsValid, which only accepts DD-MM-YYYY, so
+	// the validation could never pass and every date update failed.
+	//
+	// An empty value is a clear, not a missing field: the PATCH body spells that
+	// as `null` (API_SCOPE.md §4.4) and the HTTP layer turns it into a pointer to
+	// the empty DateProper. Without that, a death date could never be taken off
+	// someone who turned out to be alive.
+	var newBirth, newDeath *DateProper
+
+	if update.DateOfBirth != nil {
+		parsed, err := parseUpdateDate("date of birth", *update.DateOfBirth)
+		if err != nil {
+			return "", false, err
+		}
+		newBirth = &parsed
 	}
 
 	if update.DateOfDeath != nil {
-		if update.DateOfDeath != nil && !update.DateOfDeath.IsValid() {
-			return "", false, errors.New("Invalid Date Of Death Provided")
+		parsed, err := parseUpdateDate("date of death", *update.DateOfDeath)
+		if err != nil {
+			return "", false, err
 		}
-		props["date_of_death"] = *update.DateOfDeath
+		newDeath = &parsed
 	}
 
-	if update.DateOfBirth != nil || update.DateOfDeath != nil {
-		var dob DateProper
-		var dod DateProper
-
-		userObject, err := GetPerson(ctx, driver, id)
-
+	if newBirth != nil || newDeath != nil {
+		existing, err := GetPerson(ctx, driver, id)
 		if err != nil {
 			return "", false, err
 		}
 
-		if userObject == nil {
-			return "", false, fmt.Errorf("Error While Retieving Person: %s", id)
-		}
-		dob = userObject.DateOfBirth
-		dod = userObject.DateOfDeath
-
-		if update.DateOfBirth != nil {
-			dob = *update.DateOfBirth
+		if existing == nil {
+			return "", false, fmt.Errorf("%w: user %s does not exist", ErrNotFound, id)
 		}
 
-		if update.DateOfDeath != nil {
-			dod = *update.DateOfDeath
+		// Compare the dates as they will be after the update is applied, using
+		// the canonical values rather than the raw request payload.
+		birth := existing.DateOfBirth
+		death := existing.DateOfDeath
+
+		if newBirth != nil {
+			birth = *newBirth
 		}
 
-		timeOfBirth, birthOK := dob.ParseTime()
-		timeOfDeath, deathOK := dod.ParseTime()
-
-		if !birthOK || !deathOK {
-			return "", false, fmt.Errorf("Invalid Time Recieved For |TOD-ORG %v| = |TOB-ORG %v|", dod, dob)
+		if newDeath != nil {
+			death = *newDeath
 		}
 
-		if timeOfBirth.After(timeOfDeath) {
-			return "", false, fmt.Errorf("Time Of Death Is Before Time Of Birth | tb: %v | td: %v", timeOfBirth, timeOfDeath)
+		// The ordering constraint only applies when both dates are known. A
+		// living person has no death date and must still be able to have their
+		// birth date corrected.
+		if birth != "" && death != "" {
+			timeOfBirth, birthOK := birth.ParseTime()
+			timeOfDeath, deathOK := death.ParseTime()
+
+			if !birthOK || !deathOK {
+				return "", false, fmt.Errorf("%w: unparsable dates |TOD %v| = |TOB %v|", ErrInvalidUpdate, death, birth)
+			}
+
+			if timeOfBirth.After(timeOfDeath) {
+				return "", false, fmt.Errorf("%w: time of death is before time of birth | tb: %v | td: %v", ErrInvalidUpdate, timeOfBirth, timeOfDeath)
+			}
 		}
 
+		// Persist native Neo4j dates, exactly like CreateNewPerson does. Writing
+		// the string form here was what silently turned the property into a
+		// string after the first update.
+		//
+		// A cleared date is written as an explicit null, which `SET p += $props`
+		// turns into "remove the property" rather than "store a null".
+		if newBirth != nil {
+			if *newBirth == "" {
+				props["date_of_birth"] = nil
+			} else {
+				neoDate, err := newBirth.GetNeoDate()
+				if err != nil {
+					return "", false, fmt.Errorf("%w: invalid date of birth: %v", ErrInvalidUpdate, err)
+				}
+				props["date_of_birth"] = *neoDate
+			}
+		}
+
+		if newDeath != nil {
+			if *newDeath == "" {
+				props["date_of_death"] = nil
+			} else {
+				neoDate, err := newDeath.GetNeoDate()
+				if err != nil {
+					return "", false, fmt.Errorf("%w: invalid date of death: %v", ErrInvalidUpdate, err)
+				}
+				props["date_of_death"] = *neoDate
+			}
+		}
 	}
 
 	// Single query handles both existence check and property updates
@@ -108,7 +187,7 @@ func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update Up
 
 	// If no records returned, the node with given ID does not exist
 	if len(result.Records) == 0 {
-		return "", false, fmt.Errorf("user %s does not exist", id)
+		return "", false, fmt.Errorf("%w: user %s does not exist", ErrNotFound, id)
 	}
 
 	// Safely retrieve the 'name' field

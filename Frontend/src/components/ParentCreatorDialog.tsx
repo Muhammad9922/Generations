@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Button, Dialog, Flex, Select } from "@radix-ui/themes";
+import { useMemo, useState } from "react";
+import { Button, Dialog, Flex } from "@radix-ui/themes";
 import type { Person } from "../api/contracts.ts";
 import { dateValue, personToUser, reverseDate, toInputDate, type User } from "../helpers/personModel.ts";
 import { createPersonFromDraft } from "../helpers/personDrafts.ts";
+import PersonPicker from "./PersonPicker";
 
 const CREATE_NEW = "__create_new__";
 type ParentGender = User["gender"];
@@ -21,7 +22,8 @@ export default function ParentCreatorDialog({ child, people, close, save }: Prop
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const childBirth = dateValue(child.dateOfBirth);
-  const choices = (gender: ParentGender) => people.map(personToUser).filter((person) => person.id !== child.id && person.gender === gender && (childBirth === null || dateValue(person.dateOfBirth) === null || dateValue(person.dateOfBirth)! < childBirth));
+  const eligible = useMemo(() => people.map(personToUser).filter((person) => person.id !== child.id && (childBirth === null || dateValue(person.dateOfBirth) === null || dateValue(person.dateOfBirth)! < childBirth)), [people, child.id, childBirth]);
+  const choices = (gender: ParentGender) => eligible.filter((person) => person.gender === gender);
   async function resolve(draft: Draft, gender: ParentGender): Promise<User> {
     const selected = choices(gender).find((person) => person.id === draft.selection);
     if (selected) return selected;
@@ -36,6 +38,6 @@ export default function ParentCreatorDialog({ child, people, close, save }: Prop
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not add parents."); }
     finally { setSaving(false); }
   }
-  const form = (label: string, gender: ParentGender, draft: Draft, setDraft: (draft: Draft) => void) => <fieldset><legend>{label}</legend><label>Person<Select.Root value={draft.selection} onValueChange={(selection) => setDraft({ ...draft, selection })}><Select.Trigger placeholder={`Select ${label.toLowerCase()}`} /><Select.Content>{choices(gender).length > 0 && <Select.Group><Select.Label>Eligible people</Select.Label>{choices(gender).map((person) => <Select.Item key={person.id} value={person.id}>{person.name}</Select.Item>)}</Select.Group>}<Select.Separator /><Select.Item value={CREATE_NEW}>Create new person</Select.Item></Select.Content></Select.Root></label>{draft.selection === CREATE_NEW && <><label>Name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label><label>Gender<input value={gender} disabled /></label><label>Date of birth (optional)<input type="date" value={toInputDate(draft.birth)} onChange={(event) => setDraft({ ...draft, birth: reverseDate(event.target.value) })} /></label><label className="family-check"><input type="checkbox" checked={draft.alive} onChange={(event) => setDraft({ ...draft, alive: event.target.checked, death: event.target.checked ? "" : draft.death })} />Alive</label><label>Date of death (optional)<input type="date" value={toInputDate(draft.death)} onChange={(event) => { const death = reverseDate(event.target.value); setDraft({ ...draft, death, alive: death ? false : draft.alive }); }} /></label></>}</fieldset>;
+  const form = (label: string, gender: ParentGender, draft: Draft, setDraft: (draft: Draft) => void) => <fieldset><legend>{label}</legend><label>Person<PersonPicker label={label} value={draft.selection} onChange={(selection) => setDraft({ ...draft, selection })} placeholder={`Select ${label.toLowerCase()}`} groups={[{ label: "Eligible people", people: choices(gender) }]} extras={[{ value: CREATE_NEW, label: "Create new person" }]} /></label>{draft.selection === CREATE_NEW && <><label>Name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label><label>Gender<input value={gender} disabled /></label><label>Date of birth (optional)<input type="date" value={toInputDate(draft.birth)} onChange={(event) => setDraft({ ...draft, birth: reverseDate(event.target.value) })} /></label><label className="family-check"><input type="checkbox" checked={draft.alive} onChange={(event) => setDraft({ ...draft, alive: event.target.checked, death: event.target.checked ? "" : draft.death })} />Alive</label><label>Date of death (optional)<input type="date" value={toInputDate(draft.death)} onChange={(event) => { const death = reverseDate(event.target.value); setDraft({ ...draft, death, alive: death ? false : draft.alive }); }} /></label></>}</fieldset>;
   return <Dialog.Root open onOpenChange={(open) => { if (!open) close(); }}><Dialog.Content maxWidth="620px" className="family-dialog"><span className="family-eyebrow">FAMILY CONNECTION</span><Dialog.Title>Add parents</Dialog.Title><Dialog.Description size="2" mb="4">Select existing people or create parents with a birth date before {child.name}'s when known. Their marriage is created with {child.name} as its child.</Dialog.Description><form className="family-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>{form("Father", "Male", male, setMale)}{form("Mother", "Female", female, setFemale)}{error && <p role="alert" className="family-error">{error}</p>}<Flex justify="end" gap="3" mt="4"><Button type="button" variant="soft" color="gray" onClick={close}>Cancel</Button><Button type="submit" disabled={!male.selection || !female.selection || saving}>{saving ? "Saving…" : "Add parents"}</Button></Flex></form></Dialog.Content></Dialog.Root>;
 }

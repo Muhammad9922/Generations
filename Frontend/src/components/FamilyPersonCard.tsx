@@ -6,10 +6,13 @@ interface Props {
   user: User;
   label: string;
   familyId?: string;
-  highlighted: boolean;
-  onHover: (id: string | null) => void;
-  onFocus: (id: string | null) => void;
-  onEdit: (user: User) => void;
+  highlighted?: boolean;
+  /** Hover and focus highlight the marriage colour; only the person page uses it. */
+  onHover?: (id: string | null) => void;
+  onFocus?: (id: string | null) => void;
+  /** What the card itself does: edit this person, or open their own page. */
+  primaryAction?: "edit" | "open";
+  onPrimary: (user: User) => void;
   /** Opens this person as the primary person on their own page. */
   onOpen?: (user: User) => void;
   /** Removes this person from the marriage they are shown under; the trigger restores focus. */
@@ -21,15 +24,15 @@ interface Props {
  * Actions sit beside the card rather than inside it, so the card itself stays a
  * single accessible control and each action is reachable by keyboard.
  */
-export default function FamilyPersonCard({ user, label, familyId, highlighted, onHover, onFocus, onEdit, onOpen, onRemoveChild }: Props) {
+export default function FamilyPersonCard({ user, label, familyId, highlighted = false, onHover, onFocus, primaryAction = "edit", onPrimary, onOpen, onRemoveChild }: Props) {
   return (
     <div className="family-card">
       <button type="button" className="family-person" data-highlighted={highlighted}
         style={familyId ? { "--family-color": familyColor(familyId) } as CSSProperties : undefined}
-        onPointerEnter={() => onHover(familyId ?? null)} onPointerLeave={() => onHover(null)}
-        onFocus={() => onFocus(familyId ?? null)} onBlur={() => onFocus(null)}
-        onClick={() => onEdit(user)} aria-label={`Edit ${user.name}, ${label}`}>
-        <span className="family-card-top"><span className="family-avatar"><UserRound size={22} /></span><Pencil size={14} /></span>
+        onPointerEnter={() => onHover?.(familyId ?? null)} onPointerLeave={() => onHover?.(null)}
+        onFocus={() => onFocus?.(familyId ?? null)} onBlur={() => onFocus?.(null)}
+        onClick={() => onPrimary(user)} aria-label={`${primaryAction === "open" ? "Open" : "Edit"} ${user.name}, ${label}`}>
+        <span className="family-card-top"><span className="family-avatar"><UserRound size={22} /></span>{primaryAction === "open" ? <ArrowUpRight size={14} /> : <Pencil size={14} />}</span>
         <span className="family-eyebrow">{label}</span>
         <strong>{user.name}</strong>
         <span>{ageLabel(user)} · {user.gender}</span>

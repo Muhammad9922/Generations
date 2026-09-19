@@ -9,15 +9,25 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
+// MarriageUpdate holds the dates to change. Every field is a pointer, because a
+// bare DateProper cannot say both "leave this date alone" and "remove it":
+//
+//	nil   → the date was not sent, keep the stored one
+//	&""   → remove the stored date
+//	&date → store the new date
+//
+// The distinction matters on both ends. A partial update sends only one of the
+// two fields and must not wipe the other, while the frontend's "clear a field to
+// remove its date" sends an empty string for the date it wants gone.
 type MarriageUpdate struct {
-	DateStart person.DateProper
-	DateEnd   person.DateProper
+	DateStart *person.DateProper
+	DateEnd   *person.DateProper
 }
 
 func UpdateMarriageDates(ctx context.Context, driver neo4j.Driver, id string, update MarriageUpdate) (string, error) {
 
-	if update.DateEnd == "" && update.DateStart == "" {
-		return "", fmt.Errorf("No Updates Were Requested: %v", update)
+	if update.DateStart == nil && update.DateEnd == nil {
+		return "", fmt.Errorf("%w: no dates were sent", ErrInvalidUpdate)
 	}
 
 	existingRecord, err := GetMarriageFromMarriageId(ctx, driver, id)
@@ -27,7 +37,7 @@ func UpdateMarriageDates(ctx context.Context, driver neo4j.Driver, id string, up
 	}
 
 	if existingRecord == nil {
-		return "", errors.New("No Existing Record Found")
+		return "", fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 
 	if len(existingRecord) != 1 {
@@ -36,27 +46,33 @@ func UpdateMarriageDates(ctx context.Context, driver neo4j.Driver, id string, up
 
 	existingMarriage := (existingRecord)[0]
 
-	if update.DateStart == "" {
-		update.DateStart = existingMarriage.Start
+	// Resolve each date to the value it will hold after the update, so every
+	// validation below runs against the marriage's real timeline rather than
+	// against a request field that may have been left out or cleared.
+	start := existingMarriage.Start
+	end := existingMarriage.End
+
+	if update.DateStart != nil {
+		start = *update.DateStart
 	}
 
-	if update.DateEnd == "" {
-		update.DateEnd = existingMarriage.End
+	if update.DateEnd != nil {
+		end = *update.DateEnd
 	}
 
-	if update.DateStart != "" && !update.DateStart.IsValid() {
-		return "", fmt.Errorf("New DateStart Is Invalid %v", update.DateStart)
+	if start != "" && !start.IsValid() {
+		return "", fmt.Errorf("%w: New DateStart Is Invalid %v", ErrInvalidUpdate, start)
 	}
 
-	if update.DateEnd != "" && !update.DateEnd.IsValid() {
-		return "", fmt.Errorf("New DateEnd Is Invalid %v", update.DateEnd)
+	if end != "" && !end.IsValid() {
+		return "", fmt.Errorf("%w: New DateEnd Is Invalid %v", ErrInvalidUpdate, end)
 	}
 
-	if update.DateStart != "" && update.DateEnd != "" {
-		start, startOK := update.DateStart.ParseTime()
-		end, endOK := update.DateEnd.ParseTime()
-		if startOK && endOK && start.After(end) {
-			return "", fmt.Errorf("Date Start %v Is After Date End %v", update.DateStart, update.DateEnd)
+	if start != "" && end != "" {
+		startTime, startOK := start.ParseTime()
+		endTime, endOK := end.ParseTime()
+		if startOK && endOK && startTime.After(endTime) {
+			return "", fmt.Errorf("%w: Date Start %v Is After Date End %v", ErrInvalidUpdate, start, end)
 		}
 	}
 
@@ -82,30 +98,32 @@ func UpdateMarriageDates(ctx context.Context, driver neo4j.Driver, id string, up
 		return "", fmt.Errorf("Error Getting Spouse Two: %q", err)
 	}
 
-	// 1. Validate that start date is not after end date
-	if update.DateEnd.IsValid() && update.DateStart > update.DateEnd {
-		return "", fmt.Errorf("marriage start date (%v) cannot be after end date (%v)", update.DateStart, update.DateEnd)
-	}
-
-	// Helper to validate a spouse's timeline against marriage dates
+	// Helper to validate a spouse's timeline against the marriage dates. The
+	// comparisons go through ParseTime: DD-MM-YYYY strings sort by day first, so
+	// comparing them directly would call 01-02-2000 later than 31-01-2000.
 	validateSpouseDates := func(spouseLabel string, dob, dod person.DateProper) error {
-		// Birth validation
-		if update.DateStart < dob {
-			return fmt.Errorf("marriage start date (%v) cannot be before %s's birth date (%v)", update.DateStart, spouseLabel, dob)
-		}
-		if update.DateEnd.IsValid() && update.DateEnd < dob {
-			return fmt.Errorf("marriage end date (%v) cannot be before %s's birth date (%v)", update.DateEnd, spouseLabel, dob)
+		startTime, startOK := start.ParseTime()
+		endTime, endOK := end.ParseTime()
+
+		if birthTime, ok := dob.ParseTime(); ok {
+			if startOK && startTime.Before(birthTime) {
+				return fmt.Errorf("%w: marriage start date (%v) cannot be before %s's birth date (%v)", ErrInvalidUpdate, start, spouseLabel, dob)
+			}
+			if endOK && endTime.Before(birthTime) {
+				return fmt.Errorf("%w: marriage end date (%v) cannot be before %s's birth date (%v)", ErrInvalidUpdate, end, spouseLabel, dob)
+			}
 		}
 
-		// Death validation (only evaluate if DateOfDeath is set / non-zero)
-		if dod.IsValid() {
-			if update.DateStart > dod {
-				return fmt.Errorf("marriage start date (%v) cannot be after %s's death date (%v)", update.DateStart, spouseLabel, dod)
+		// Death validation (only evaluated when the spouse has a death date).
+		if deathTime, ok := dod.ParseTime(); ok {
+			if startOK && startTime.After(deathTime) {
+				return fmt.Errorf("%w: marriage start date (%v) cannot be after %s's death date (%v)", ErrInvalidUpdate, start, spouseLabel, dod)
 			}
-			if update.DateEnd != "" && update.DateEnd > dod {
-				return fmt.Errorf("marriage end date (%v) cannot be after %s's death date (%v)", update.DateEnd, spouseLabel, dod)
+			if endOK && endTime.After(deathTime) {
+				return fmt.Errorf("%w: marriage end date (%v) cannot be after %s's death date (%v)", ErrInvalidUpdate, end, spouseLabel, dod)
 			}
 		}
+
 		return nil
 	}
 
@@ -117,6 +135,13 @@ func UpdateMarriageDates(ctx context.Context, driver neo4j.Driver, id string, up
 		return "", err
 	}
 
+	// The query writes both properties, so each parameter holds the value the
+	// property should end up with. `start` and `end` were resolved above, which
+	// gives all three cases their correct spelling here:
+	//
+	//	not sent → the stored value, written back unchanged
+	//	cleared  → null, which removes the property instead of storing a null
+	//	replaced → the new date, as a native Neo4j date like CreateNewMarriage
 	query := `
 	MATCH (m:Marriage {id: $id})
 	SET m.start = $start, m.end = $end
@@ -128,12 +153,22 @@ func UpdateMarriageDates(ctx context.Context, driver neo4j.Driver, id string, up
 		"end":   nil,
 	}
 
-	if update.DateStart != "" {
-		params["start"] = update.DateStart
-	}
+	for _, date := range []struct {
+		key   string
+		value person.DateProper
+	}{
+		{"start", start},
+		{"end", end},
+	} {
+		if date.value == "" {
+			continue
+		}
 
-	if update.DateEnd != "" {
-		params["end"] = update.DateEnd
+		neoDate, err := date.value.GetNeoDate()
+		if err != nil {
+			return "", fmt.Errorf("%w: invalid %s date: %v", ErrInvalidUpdate, date.key, err)
+		}
+		params[date.key] = *neoDate
 	}
 
 	records, err := neo4j.ExecuteQuery(

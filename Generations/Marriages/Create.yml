@@ -1,0 +1,19 @@
+info:
+  name: Create
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:8080/marriages
+  body:
+    type: json
+    data: '{ "SpouseOne": "<spouse-one-id>", "SpouseTwo": "<spouse-two-id>", "DateStart": "01-01-2005", "DateEnd": "", "childrenIds": ["<child-id>"] }'
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

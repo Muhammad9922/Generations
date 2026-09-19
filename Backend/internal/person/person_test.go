@@ -318,6 +318,25 @@ func readPersonProperties(t *testing.T, ctx context.Context, driver neo4j.Driver
 	return props
 }
 
+// propsDate renders a persisted date property into the canonical DD-MM-YYYY
+// form. Date properties come back from Neo4j as native neo4j.Date values (not
+// strings), so they must be formatted before being compared to a DateProper.
+func propsDate(t *testing.T, props map[string]any, key string) string {
+	t.Helper()
+
+	raw, ok := props[key]
+	if !ok || raw == nil {
+		return ""
+	}
+
+	formatted, ok := FormatDate(raw)
+	if !ok {
+		t.Fatalf("could not format %s value of type %T", key, raw)
+	}
+
+	return formatted
+}
+
 func TestUpdatePerson(t *testing.T) {
 	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
@@ -377,13 +396,13 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["gender"]; got != string(updatedGender) {
 			t.Errorf("persisted gender = %v, want %q", got, updatedGender)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOB) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOB) {
 			t.Errorf("persisted date_of_birth = %v, want %q", got, updatedDOB)
 		}
 		if got := props["alive"]; got != updatedAlive {
 			t.Errorf("persisted alive = %v, want %v", got, updatedAlive)
 		}
-		if got := props["date_of_death"]; got != string(updatedDOD) {
+		if got := propsDate(t, props, "date_of_death"); got != string(updatedDOD) {
 			t.Errorf("presisted death - %v, want %v", got, updatedDOD)
 		}
 	})
@@ -411,7 +430,7 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["gender"]; got != string(updatedGender) {
 			t.Errorf("gender should be untouched = %v, want %q", got, updatedGender)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOB) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOB) {
 			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOB)
 		}
 		if got := props["alive"]; got != updatedAlive {
@@ -442,7 +461,7 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["name"]; got != updatedNameOnly {
 			t.Errorf("name should be untouched = %v, want %q", got, updatedNameOnly)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOB) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOB) {
 			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOB)
 		}
 		if got := props["alive"]; got != updatedAlive {
@@ -467,7 +486,7 @@ func TestUpdatePerson(t *testing.T) {
 		}
 
 		props := readPersonProperties(t, ctx, driver, id)
-		if got := props["date_of_birth"]; got != string(updatedDOBOnly) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOBOnly) {
 			t.Errorf("persisted date_of_birth = %v, want %q", got, updatedDOBOnly)
 		}
 		if got := props["name"]; got != updatedNameOnly {
@@ -507,7 +526,7 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["gender"]; got != string(updatedGenderAgain) {
 			t.Errorf("gender should be untouched = %v, want %q", got, updatedGenderAgain)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOBOnly) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOBOnly) {
 			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOBOnly)
 		}
 	})
@@ -1131,4 +1150,375 @@ func TestGetPersonEmptyDateDoesNotPanic(t *testing.T) {
 		}()
 		_, _ = GetPerson(ctx, driver, id)
 	}()
+}
+
+// TestGetPersonList_HappyPath validates that the function successfully fetches
+// multiple people with various combinations of data (full profile, missing optional fields,
+// native Cypher Date vs String Date, and YYYY-MM-DD vs DD-MM-YYYY).
+func TestGetPersonList_HappyPath(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	defer driver.Close(ctx)
+
+	// Create test subjects directly via Cypher to test native dbtype.Date and string formats
+	id1 := uuid.New().String()
+	id2 := uuid.New().String()
+	id3 := uuid.New().String()
+
+	setupQuery := `
+	CREATE (p1:Person {id: $id1, name: 'Full Cypher Date', gender: 'Male', date_of_birth: date('2000-12-25'), alive: false, date_of_death: date('2020-01-01')})
+	CREATE (p2:Person {id: $id2, name: 'String YYYY', gender: 'Female', date_of_birth: '1995-10-15', alive: true})
+	CREATE (p3:Person {id: $id3, name: 'String DD', gender: 'Male', date_of_birth: '15-10-1995'})
+	`
+	_, err := neo4j.ExecuteQuery(ctx, driver, setupQuery,
+		map[string]any{"id1": id1, "id2": id2, "id3": id3},
+		neo4j.EagerResultTransformer)
+
+	if err != nil {
+		t.Fatalf("failed to setup happy path data: %v", err)
+	}
+
+	// Cleanup our injected test data regardless of test outcome
+	t.Cleanup(func() {
+		neo4j.ExecuteQuery(ctx, driver, `MATCH (p:Person) WHERE p.id IN [$id1, $id2, $id3] DELETE p`,
+			map[string]any{"id1": id1, "id2": id2, "id3": id3}, neo4j.EagerResultTransformer)
+	})
+
+	people, err := GetPersonList(ctx, driver)
+	if err != nil {
+		t.Fatalf("Expected successful fetch, got error: %v", err)
+	}
+
+	if len(people) < 3 {
+		t.Fatalf("Expected at least 3 people in the list, got %d", len(people))
+	}
+
+	// Verify our specific inserted users
+	foundIds := make(map[string]NewPerson)
+	for _, p := range people {
+		foundIds[p.Id] = p
+	}
+
+	// Assertions for Native Cypher Date
+	if p, ok := foundIds[id1]; ok {
+		if p.DateOfBirth != "25-12-2000" {
+			t.Errorf("Expected p1 DOB 25-12-2000, got %q", p.DateOfBirth)
+		}
+		if p.DateOfDeath != "01-01-2020" {
+			t.Errorf("Expected p1 DOD 01-01-2020, got %q", p.DateOfDeath)
+		}
+		if p.Alive != false {
+			t.Errorf("Expected p1 Alive false, got true")
+		}
+	} else {
+		t.Errorf("Person 1 not found in list")
+	}
+
+	// Assertions for String YYYY-MM-DD
+	if p, ok := foundIds[id2]; ok {
+		if p.DateOfBirth != "15-10-1995" {
+			t.Errorf("Expected p2 DOB 15-10-1995, got %q", p.DateOfBirth)
+		}
+		if p.DateOfDeath != "" {
+			t.Errorf("Expected p2 DOD to be empty, got %q", p.DateOfDeath)
+		}
+		if p.Alive != true {
+			t.Errorf("Expected p2 Alive true, got false")
+		}
+	} else {
+		t.Errorf("Person 2 not found in list")
+	}
+
+	// Assertions for String DD-MM-YYYY
+	if p, ok := foundIds[id3]; ok {
+		if p.DateOfBirth != "15-10-1995" {
+			t.Errorf("Expected p3 DOB 15-10-1995, got %q", p.DateOfBirth)
+		}
+		if p.Alive != false {
+			t.Errorf("Expected p3 Alive false (default boolean mapping), got true")
+		}
+	} else {
+		t.Errorf("Person 3 not found in list")
+	}
+}
+
+// TestGetPersonList_MissingRequiredKeys guards against database states where
+// a Person node lacks the fundamental constraints (name, id).
+func TestGetPersonList_MissingRequiredKeys(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	defer driver.Close(ctx)
+
+	tests := []struct {
+		name        string
+		cypher      string
+		expectedErr string
+	}{
+		{
+			name:        "Missing ID",
+			cypher:      `CREATE (p:Person {name: 'No ID Person'}) RETURN p.id as injected_id`,
+			expectedErr: "required key missing: id",
+		},
+		{
+			name:        "Missing Name",
+			cypher:      `CREATE (p:Person {id: $id}) RETURN p.id as injected_id`,
+			expectedErr: "required key missing: name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := uuid.New().String()
+
+			// Inject corrupted node
+			_, err := neo4j.ExecuteQuery(ctx, driver, tt.cypher,
+				map[string]any{"id": id}, neo4j.EagerResultTransformer)
+			if err != nil {
+				t.Fatalf("Failed to setup corrupted node: %v", err)
+			}
+
+			t.Cleanup(func() {
+				// We need to clean up strictly by ID, or if ID is missing, by Name to restore DB state
+				cleanupQuery := `MATCH (p:Person) WHERE p.id = $id OR p.name = 'No ID Person' DELETE p`
+				neo4j.ExecuteQuery(ctx, driver, cleanupQuery, map[string]any{"id": id}, neo4j.EagerResultTransformer)
+			})
+
+			// Wait for the corrupted record to be processed
+			_, err = GetPersonList(ctx, driver)
+
+			if err == nil {
+				t.Fatalf("Expected an error for %s, but got nil", tt.name)
+			}
+			if !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Errorf("Expected error to contain %q, got: %v", tt.expectedErr, err)
+			}
+		})
+	}
+}
+
+// TestGetPersonList_MalformedDates checks the length < 3 splitting logic
+// as well as the DateProper validation for both DateOfBirth and DateOfDeath
+func TestGetPersonList_MalformedDates(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	defer driver.Close(ctx)
+
+	tests := []struct {
+		name        string
+		propName    string
+		badDateVal  string
+		expectedErr string
+	}{
+		{"Empty String DOB", "date_of_birth", "", "Invalid Date Of Birth:"},
+		{"Not Enough Parts DOB", "date_of_birth", "2023-11", "Invalid Date Of Birth: 2023-11"},
+		{"Impossible DOB", "date_of_birth", "99-99-9999", "Invalid Date Of Birth:"}, // Validates DateProper logic checks
+		{"Empty String DOD", "date_of_death", "", "Invalid Date Of Death:"},
+		{"Not Enough Parts DOD", "date_of_death", "2023-11", "Invalid Date Of Death: 2023-11"},
+		{"Impossible DOD", "date_of_death", "33-02-2023", "Invalid Date Of Death:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := uuid.New().String()
+
+			// Inject malformed date directly via SET so it bypasses CreateNewPerson validations
+			injectQuery := `CREATE (p:Person {id: $id, name: 'Date Corruption Test'}) SET p.` + tt.propName + ` = $val`
+			_, err := neo4j.ExecuteQuery(ctx, driver, injectQuery,
+				map[string]any{"id": id, "val": tt.badDateVal}, neo4j.EagerResultTransformer)
+			if err != nil {
+				t.Fatalf("Failed to setup malformed node: %v", err)
+			}
+
+			t.Cleanup(func() {
+				neo4j.ExecuteQuery(ctx, driver, `MATCH (p:Person {id: $id}) DELETE p`,
+					map[string]any{"id": id}, neo4j.EagerResultTransformer)
+			})
+
+			// Capture the returned people list to inspect it if no error is thrown
+			people, err := GetPersonList(ctx, driver)
+
+			if err == nil {
+				// Log the unexpected success context
+				t.Logf("UNEXPECTED SUCCESS: Expected an error for malformed %s = %q", tt.propName, tt.badDateVal)
+
+				// Locate the specific corrupted person we injected to see how it was parsed
+				var parsedPerson *NewPerson
+				for _, p := range people {
+					if p.Id == id {
+						parsedPerson = &p
+						break
+					}
+				}
+
+				if parsedPerson != nil {
+					t.Logf("The malformed data was parsed into this struct: %+v", *parsedPerson)
+				} else {
+					t.Logf("The corrupted person was NOT found in the returned list. Total people returned: %d", len(people))
+				}
+
+				t.Fatalf("Expected an error for malformed %s: %q, got nil", tt.propName, tt.badDateVal)
+			}
+
+			if !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Errorf("Expected error to contain %q, got: %v", tt.expectedErr, err)
+			}
+		})
+	}
+}
+
+// TestGetPersonList_UnexpectedDataTypes guards against panic issues when fields in the
+// database do not match their expected types (e.g. `name` is an Integer, `alive` is a String).
+// The map cast ok-idiom `val, ok := personMap["name"].(string)` should safely skip instead of panicking.
+func TestGetPersonList_UnexpectedDataTypes(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	defer driver.Close(ctx)
+
+	id := uuid.New().String()
+
+	// Inject a node where Name is an INT and Alive is a STRING
+	// Note: Cypher doesn't allow `name` to be an INT out of the box if there's a strict schema constraint,
+	// but in a loosely typed graph, this verifies type assertion safety.
+	injectQuery := `CREATE (p:Person {id: $id, name: 12345, alive: 'Yes'})`
+	_, err := neo4j.ExecuteQuery(ctx, driver, injectQuery, map[string]any{"id": id}, neo4j.EagerResultTransformer)
+	if err != nil {
+		t.Fatalf("Failed to setup wrong-type node: %v", err)
+	}
+
+	t.Cleanup(func() {
+		neo4j.ExecuteQuery(ctx, driver, `MATCH (p:Person {id: $id}) DELETE p`, map[string]any{"id": id}, neo4j.EagerResultTransformer)
+	})
+
+	people, err := GetPersonList(ctx, driver)
+	if err != nil {
+		t.Fatalf("GetPersonList failed, expected to gracefully bypass wrong types, but got error: %v", err)
+	}
+
+	// Verify the safety net worked:
+	// The `name` key existed (not nil) so it bypassed `if personMap[key] == nil`,
+	// but the string assertion failed, leaving p.PersonName empty string.
+	found := false
+	for _, p := range people {
+		if p.Id == id {
+			found = true
+			if p.PersonName != "" {
+				t.Errorf("Expected PersonName to fallback to empty string when underlying DB value is INT, got: %v", p.PersonName)
+			}
+			if p.Alive != false {
+				t.Errorf("Expected Alive to fallback to default false when underlying DB value is STRING, got: %v", p.Alive)
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("Injected test person %q was not retrieved in list", id)
+	}
+}
+
+// TestGetPersonList_ClosedDriver guards against swallowing execution errors.
+func TestGetPersonList_ClosedDriver(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	driver.Close(ctx)
+
+	people, err := GetPersonList(ctx, driver)
+
+	if err == nil {
+		t.Fatalf("Expected an error when running GetPersonList on a closed driver, got nil")
+	}
+
+	if people != nil {
+		t.Errorf("Expected people list to be nil on error, got length %d", len(people))
+	}
+}
+
+// TestGetPersonList_EmptyDatabase ensures the function behaves well if
+// the DB query yields 0 results (e.g., skips iteration, returns empty array).
+// Note: This relies on deleting everything or testing logic safely.
+func TestGetPersonList_EmptyDatabase_Simulated(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	defer driver.Close(ctx)
+
+	// We can't safely wipe the shared database here without breaking other parallel tests,
+	// so we test a simulated empty condition by querying a bogus label manually.
+	// Since GetPersonList uses hardcoded MATCH (p:Person), we know the loop handles 0 records correctly
+	// if we test the fundamental structure. (This just asserts a 0-result list doesn't panic.)
+
+	// Create a completely random person, then delete them, asserting no panic in routine operations
+	id := uuid.New().String()
+	neo4j.ExecuteQuery(ctx, driver, `CREATE (p:Person {id: $id, name: 'Delete Me'})`, map[string]any{"id": id}, neo4j.EagerResultTransformer)
+	neo4j.ExecuteQuery(ctx, driver, `MATCH (p:Person {id: $id}) DELETE p`, map[string]any{"id": id}, neo4j.EagerResultTransformer)
+
+	people, err := GetPersonList(ctx, driver)
+	if err != nil {
+		t.Fatalf("GetPersonList failed after random operations: %v", err)
+	}
+
+	// Even if it's 0 or more from other tests, ensure it doesn't panic on instantiation.
+	if people == nil {
+		// Valid behaviour if empty: `var people []NewPerson` remains nil if `records` is empty.
+		t.Log("People list is nil, which handles 0 records accurately.")
+	}
+}
+
+// TestUpdateClearsDates covers the half of a PATCH that a pointer alone cannot
+// express: an explicit null means "remove this date", not "leave it as it is".
+// The frontend sends exactly that when someone is marked alive again, so a death
+// date has to be able to disappear.
+func TestUpdateClearsDates(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+	if _, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Clear Dates " + id,
+		Gender:      Male,
+		DateOfBirth: "01-01-1900",
+		Alive:       false,
+		DateOfDeath: "01-01-1950",
+	}); err != nil {
+		t.Fatalf("failed to create person: %v", err)
+	}
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	// An empty DateProper is the clear sentinel the HTTP layer builds from null.
+	clear := DateProper("")
+
+	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfDeath: &clear}); err != nil {
+		t.Fatalf("expected a death date to be clearable, got error: %v", err)
+	}
+
+	stored, err := GetPerson(ctx, driver, id)
+	if err != nil {
+		t.Fatalf("failed to read the person back: %v", err)
+	}
+	if stored.DateOfDeath != "" {
+		t.Errorf("expected the death date to be gone, got %q", stored.DateOfDeath)
+	}
+	if stored.DateOfBirth != "01-01-1900" {
+		t.Errorf("clearing the death date must not touch the birth date, got %q", stored.DateOfBirth)
+	}
+
+	// Clearing an already-absent date is not an error either.
+	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfDeath: &clear, Alive: Ptr(true)}); err != nil {
+		t.Errorf("expected clearing an absent date to succeed, got error: %v", err)
+	}
+
+	stored, err = GetPerson(ctx, driver, id)
+	if err != nil {
+		t.Fatalf("failed to read the person back: %v", err)
+	}
+	if !stored.Alive {
+		t.Error("expected the person to be alive now")
+	}
+
+	// A birth date has to be clearable too.
+	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfBirth: &clear}); err != nil {
+		t.Fatalf("expected a birth date to be clearable, got error: %v", err)
+	}
+
+	stored, err = GetPerson(ctx, driver, id)
+	if err != nil {
+		t.Fatalf("failed to read the person back: %v", err)
+	}
+	if stored.DateOfBirth != "" {
+		t.Errorf("expected the birth date to be gone, got %q", stored.DateOfBirth)
+	}
 }

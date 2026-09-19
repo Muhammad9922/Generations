@@ -30,8 +30,8 @@ person with two marriages and two children in each".
 
 ## 1. Home page and command palette
 
-- [ ] Home shows "Welcome To Generations!" with four cards.
-- [ ] "List Of Singles" and "New Family" are **disabled** and labelled "(coming soon)".
+- [ ] Home shows "Welcome To Generations!" with five cards.
+- [ ] Every card is enabled and opens something: Search User opens the palette, List Of Singles opens `/singles`, New Family `/families/new`, Relationships `/relationships`, and the last card toggles the theme.
 - [ ] "Search User" opens the palette; "Dark Mode" / "Light Mode" toggles the theme and the label flips.
 - [ ] `Ctrl+K` / `⌘K` opens the palette from Home **and** from a person page.
 - [ ] Palette shows sections `Navigation`, `Preferences`, `People`.
@@ -93,7 +93,10 @@ person with two marriages and two children in each".
 
 ## 7. Add spouse
 
-- [ ] **Add spouse** opens the dialog; the select lists only opposite-gender people who are not already a spouse.
+- [ ] **Add spouse** opens the dialog; the picker lists only opposite-gender people who are not already a spouse.
+- [ ] The picker is searchable: typing narrows the list and starts it at the top, `↑`/`↓` move the highlight (wrapping), `Home`/`End` jump, `Enter` chooses, `Tab` closes.
+- [ ] Opening the picker and scrolling its list stay smooth on a large database — only the rows in view are in the DOM, so scrolling never grows the node count.
+- [ ] `Esc` inside an open picker closes **only** the picker; the dialog stays open. `Esc` again closes the dialog.
 - [ ] "Create new person" reveals name / birth / alive / death fields, with gender locked to the opposite of the focal person.
 - [ ] Submitting without choosing anyone keeps the button disabled.
 - [ ] A new spouse with no name is rejected ("The new spouse needs a name.").
@@ -190,3 +193,62 @@ Every card except the selected person's own carries an **Open** button.
 - [ ] Navigating between relatives keeps the palette shortcut (`Ctrl+K`) working, and "Back home" still returns to `/`.
 - [ ] A person opened as primary shows the same family as they do as a card on the page you came from.
 - [ ] A marriage or other non-person ID in the URL (`/people/id-1-marriage-1`) shows "Person not found", not a crash or an empty family.
+
+## 16. New family
+
+The Home **New Family** card opens `/families/new`: the person page's layout before its first person exists.
+
+- [ ] The page uses the person page's layout — Parents, Person & spouses and Children sections — under a "New family" heading, with **Back home** still working.
+- [ ] Everything except **Back home** and **Create new person** is **disabled**: Add parents, Add spouse and Add child.
+- [ ] Each disabled control says "Available once the first person exists"; the Parents tile keeps the person page's tall dashed shape and the Children section reads "Create the first person, then add a spouse before adding children."
+- [ ] The selected person's slot is a dashed placeholder reading "No person yet", not an editable person card, and it has **no** Open button.
+- [ ] **Create new person** opens the dialog; **Cancel** and `Esc` close it without creating anything or navigating.
+- [ ] Submitting with no name is rejected ("The person needs a name.") and a future birth date is rejected.
+- [ ] Creating someone logs `CreatePerson`, then the app navigates to `/people/<new id>` — that new person's own page, with everything enabled and no marriages or parents yet.
+- [ ] The new person appears in the command palette without a full page reload.
+- [ ] Reloading `/people/<new id>` (or pasting it in a new tab) still resolves.
+
+## 17. Relationships
+
+The Home **Relationships** card opens `/relationships`, where one person's extended family is read from the same records as the person pages.
+
+- [ ] The card is enabled, and `/relationships` shows a picker rather than a report until someone is chosen.
+- [ ] Choosing a person navigates to `/relationships/<id>`, and that URL can be reloaded or pasted into another tab.
+- [ ] The heading names the person; **Person page** returns to their own page and **Back home** to the cards.
+- [ ] Only the relations that person actually has appear, nearest first: Parents, Spouses, Children, Siblings, Half-siblings, Grandparents, Uncles, Aunts, Nieces, Nephews, Cousins.
+- [ ] Every relation chip shows its count, including **0** for the ones this person has none of — and the chip is still clickable.
+- [ ] Turning a chip off removes that section and lowers the summary; **Clear filters** appears only once a filter is active and restores everything.
+- [ ] **Gender**, **Living** and **Name** narrow the cards, and the summary reads "N of M relatives shown".
+- [ ] **Sort by** reorders within each section — Closest relation, Name, Oldest first, Youngest first — and a person with no recorded birth date stays last in both directions.
+- [ ] Cards read "Open <name>, <relation>", the eyebrow names the relation, and cousins, nieces/nephews and uncles/aunts also say **via <the relative they come through>**.
+- [ ] Clicking a card opens that person's page, where the same link can be checked from the other side.
+- [ ] A person with nobody linked shows "No relatives are recorded for … yet"; filters that exclude everyone show "No relatives match these filters."
+- [ ] `/relationships/<unknown id>` shows "Person not found", not a crash or an empty report.
+- [ ] Relations by marriage are **not** listed: the wife of an uncle or of a sibling is not reported as an aunt or a sibling.
+
+## 18. List Of Singles
+
+The Home **List Of Singles** card opens `/singles`: everyone the graph records no marriage for.
+
+- [ ] The card is enabled and opens `/singles`; no card on Home is disabled any more.
+- [ ] The list arrives in one request (`GET /people/singles`), not one per person, and the count matches the number of cards.
+- [ ] The heading explains the rule, and the notice says a widow or widower is **not** listed while someone whose marriage was disbanded **is**.
+- [ ] Every card is labelled `Single` and opens that person's page.
+- [ ] **Gender**, **Living**, **Sort by** and **Name** narrow the list, the summary reads "N of M singles shown", and **Clear filters** appears only once a filter is active.
+- [ ] Sorting by Oldest first and Youngest first both leave a person with no recorded birth date at the end.
+- [ ] Filters that exclude everyone show "No single people match these filters."
+- [ ] An empty database shows "No single people are recorded yet."
+- [ ] Stopping the API and reloading reports the failure with a **Retry** that recovers once the API is back.
+- [ ] A married person does **not** appear here, and their own page still lists their spouse.
+
+## 19. Shipping
+
+Both halves build and run as containers.
+
+- [ ] `docker compose up --build` starts the API and the site, and the site answers on `http://localhost:8081`.
+- [ ] The site's `/api/...` requests reach the API container, and a deep link such as `/relationships/<id>` survives a page refresh.
+- [ ] `GET /health` answers `{"status":"ok"}` without touching the graph, and the API container reports healthy.
+- [ ] `NEO4J_URI` points the API at another graph without rebuilding the image.
+- [ ] Changing `API_PORT` / `WEB_PORT` moves the published ports.
+- [ ] `docker compose config` validates the file without starting anything.
+

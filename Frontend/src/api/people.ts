@@ -27,6 +27,20 @@ export async function createPerson(person: CreatePersonRequest, signal?: AbortSi
 }
 
 /**
+ * `GET /people/singles` — everyone who is not a spouse in any marriage.
+ *
+ * The filter is a graph fact rather than a property, so it is its own endpoint:
+ * the list endpoint cannot answer it without reading every person's marriages.
+ * The response is the same shape as `GET /people`.
+ */
+export async function getSingles(signal?: AbortSignal): Promise<Person[]> {
+  return withContractLog("GET /people/singles", { payload: {} }, async () => {
+    const body = await request<ListPeopleResponse>(ENDPOINTS.singles, { signal });
+    return body.people;
+  }, (result) => ({ count: result.length }));
+}
+
+/**
  * `PATCH /people/:id` saves the editable profile of any person on a family page:
  * the selected person, a parent, a spouse or a child. Only these fields are ever
  * sent, so a death date is cleared for anyone still alive.
