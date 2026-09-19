@@ -23,7 +23,7 @@ export async function getAllPeople(signal?: AbortSignal): Promise<Person[]> {
 export async function createPerson(person: CreatePersonRequest, signal?: AbortSignal): Promise<CreatePersonResponse> {
   return withContractLog("CreatePerson", { payload: person }, () =>
     request<CreatePersonResponse>(ENDPOINTS.people, { method: "POST", body: person, signal }),
-    (result) => ({ id: result.Id }));
+    (result) => ({ id: result.id }));
 }
 
 /**
@@ -33,13 +33,13 @@ export async function createPerson(person: CreatePersonRequest, signal?: AbortSi
  */
 export async function updateUserDetails(user: User, signal?: AbortSignal): Promise<UpdatePersonResponse> {
   const update: UpdatePersonRequest = {
-    Name: user.Name,
-    Gender: user.Gender,
-    Alive: user.Alive,
-    DateOfBirth: user.DateOfBirth || null,
-    DateOfDeath: user.Alive ? null : user.DeateOfDeath || null,
+    Name: user.name,
+    Gender: user.gender,
+    Alive: user.alive,
+    DateOfBirth: user.dateOfBirth || null,
+    DateOfDeath: user.alive ? null : user.dateOfDeath || null,
   };
-  return withContractLog("PATCH /people/:id", { id: user.Id, fields: Object.keys(update), payload: update }, () =>
-    request<UpdatePersonResponse>(ENDPOINTS.person(user.Id), { method: "PATCH", body: update, signal }),
-    (result) => ({ id: result.Id }));
+  return withContractLog("PATCH /people/:id", { id: user.id, fields: Object.keys(update), payload: update }, () =>
+    request<UpdatePersonResponse>(ENDPOINTS.person(user.id), { method: "PATCH", body: update, signal }),
+    (result) => ({ id: result.id }));
 }

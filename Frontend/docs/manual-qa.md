@@ -46,7 +46,7 @@ person with two marriages and two children in each".
 
 - [ ] `/people/id-1` shows a "Loading person…" state, then the family view.
 - [ ] Console has a collapsed `[api-contract] Request: GET /people/:id` group and a `Response` group with `Duration` and `found: true`.
-- [ ] Response payload contains `Person`, `ParentsMarriage` (with `Spouse` + `Chidren` holding this person) and `Marriages`.
+- [ ] Response payload contains `Person`, `ParentsMarriage` (with `Spouse` + `Children` holding this person) and `Marriages`, and each person shows `id` / `name` / `dateOfBirth` / `dateOfDeath` / `gender` / `alive` rather than `undefined`.
 - [ ] `/people/does-not-exist` shows "Person not found" (not a crash, not "Loading").
 - [ ] `/nonsense` shows "Page not found" with a "Go home" link.
 - [ ] "Back home" returns to `/` without a page reload.

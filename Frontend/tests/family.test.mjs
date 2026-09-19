@@ -18,35 +18,35 @@ test("dates validate leap years and pre-1970 values; age respects birthdays and 
   const user = newUser("p", "Person", "18-09-2000");
   assert.equal(ageLabel(user, new Date(2026, 8, 17)), "Age 25");
   assert.equal(ageLabel(user, new Date(2026, 8, 18)), "Age 26");
-  assert.equal(ageLabel({ ...user, Alive: false, DeateOfDeath: "17-09-2020" }), "Died aged 19");
-  assert.equal(ageLabel({ ...user, Alive: false, DeateOfDeath: "" }), "Age unknown");
+  assert.equal(ageLabel({ ...user, alive: false, dateOfDeath: "17-09-2020" }), "Died aged 19");
+  assert.equal(ageLabel({ ...user, alive: false, dateOfDeath: "" }), "Age unknown");
 });
 
 test("children sort globally across marriages, with invalid dates last and stable ties", () => {
   const marriages = [
-    { Id: "a", Chidren: [newUser("young", "Young", "01-01-2020"), newUser("old", "Old", "31-12-1999")] },
-    { Id: "b", Chidren: [newUser("middle", "Middle", "01-02-2010"), newUser("unknown", "Zed"), newUser("invalid", "Amy", "31-02-2000")] },
+    { Id: "a", Children: [newUser("young", "Young", "01-01-2020"), newUser("old", "Old", "31-12-1999")] },
+    { Id: "b", Children: [newUser("middle", "Middle", "01-02-2010"), newUser("unknown", "Zed"), newUser("invalid", "Amy", "31-02-2000")] },
   ];
   const before = structuredClone(marriages);
-  assert.deepEqual(sortedChildren(marriages).map(({ user }) => user.Id), ["old", "middle", "young", "invalid", "unknown"]);
+  assert.deepEqual(sortedChildren(marriages).map(({ user }) => user.id), ["old", "middle", "young", "invalid", "unknown"]);
   assert.deepEqual(marriages, before);
   assert.equal(sortedChildren(marriages)[1].familyId, "b");
-  const ties = [{ Id: "a", Chidren: [newUser("2", "Same", "01-01-2000"), newUser("1", "Same", "01-01-2000")] }];
-  assert.deepEqual(sortedChildren(ties).map(({ user }) => user.Id), ["1", "2"]);
-  assert.deepEqual(sortedChildren([{ Id: "missing" }, { Id: "null", Chidren: null }]), []);
+  const ties = [{ Id: "a", Children: [newUser("2", "Same", "01-01-2000"), newUser("1", "Same", "01-01-2000")] }];
+  assert.deepEqual(sortedChildren(ties).map(({ user }) => user.id), ["1", "2"]);
+  assert.deepEqual(sortedChildren([{ Id: "missing" }, { Id: "null", Children: null }]), []);
 });
 
 test("the payload the page renders keeps parents and marriages apart", () => {
   const data = samplePersonDetails("id-1");
   // The child link is what makes the two spouses this person's parents.
-  assert.deepEqual(data.ParentsMarriage.Chidren.map((child) => child.Id), ["id-1"]);
+  assert.deepEqual(data.ParentsMarriage.Children.map((child) => child.id), ["id-1"]);
   assert.equal(data.Marriages.length, 2);
-  for (const marriage of data.Marriages) assert.equal(otherSpouses(marriage, data.Person.Id).length, 1);
+  for (const marriage of data.Marriages) assert.equal(otherSpouses(marriage, data.Person.id).length, 1);
   // A spouse, a child and a parent each resolve from the same relationships.
   assert.equal(samplePersonDetails("id-1-spouse-1").Marriages[0].Id, "id-1-marriage-1");
   assert.equal(samplePersonDetails("id-1-child-1").ParentsMarriage.Id, "id-1-marriage-1");
   assert.equal(samplePersonDetails("id-1-child-1").Marriages.length, 0);
-  assert.equal(samplePersonDetails("id-1-parent-2").Marriages[0].Chidren[0].Id, "id-1");
+  assert.equal(samplePersonDetails("id-1-parent-2").Marriages[0].Children[0].id, "id-1");
   // A marriage ID is not a person.
   assert.equal(samplePersonDetails("id-1-marriage-1"), null);
 });
@@ -65,16 +65,16 @@ test("isYoungerThan only rejects someone proven to be the same age or older", ()
 
 test("personToUser maps the list model onto the wire model", () => {
   assert.deepEqual(personToUser(samplePeople[0]), {
-    Id: "id-1", Name: "Mahammad Muhayodin", Gender: "Male", Alive: true, DateOfBirth: "14-03-1980", DeateOfDeath: "",
+    id: "id-1", name: "Mahammad Muhayodin", gender: "Male", alive: true, dateOfBirth: "14-03-1980", dateOfDeath: "",
   });
   // Missing optional dates become empty strings, never undefined.
   const bare = personToUser({ id: "x", name: "No dates", gender: "Female", alive: true });
-  assert.equal(bare.DateOfBirth, "");
-  assert.equal(bare.DeateOfDeath, "");
+  assert.equal(bare.dateOfBirth, "");
+  assert.equal(bare.dateOfDeath, "");
 });
 
 test("newUser drafts start alive and empty; oppositeGender pairs the accepted genders", () => {
-  assert.deepEqual(newUser(""), { Id: "", Name: "", DateOfBirth: "", Gender: "Male", Alive: true, DeateOfDeath: "" });
+  assert.deepEqual(newUser(""), { id: "", name: "", dateOfBirth: "", gender: "Male", alive: true, dateOfDeath: "" });
   assert.equal(oppositeGender("Male"), "Female");
   assert.equal(oppositeGender("Female"), "Male");
 });

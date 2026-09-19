@@ -14,7 +14,7 @@ export interface PersonDraft {
 }
 
 /** Maps a dialog draft onto the `CreatePerson` body. */
-export function toCreatePersonRequest(draft: PersonDraft, gender: User["Gender"]): CreatePersonRequest {
+export function toCreatePersonRequest(draft: PersonDraft, gender: User["gender"]): CreatePersonRequest {
   return {
     PersonName: draft.name.trim(),
     Gender: gender,
@@ -29,7 +29,7 @@ export function toCreatePersonRequest(draft: PersonDraft, gender: User["Gender"]
  * naming which person is missing, then resolves the saved record so the caller
  * works with the ID the API assigned rather than one it invented.
  */
-export async function createPersonFromDraft(draft: PersonDraft, gender: User["Gender"], who: string): Promise<User> {
+export async function createPersonFromDraft(draft: PersonDraft, gender: User["gender"], who: string): Promise<User> {
   if (!draft.name.trim()) throw new Error(`The ${who} needs a name.`);
   return createPerson(toCreatePersonRequest(draft, gender));
 }
