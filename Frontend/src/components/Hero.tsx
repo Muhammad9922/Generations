@@ -33,12 +33,12 @@ export default function HeroSection({ dark, onToggleTheme }: { dark: boolean; on
   return (
     <Section className="flex flex-col gap-9">
       <Text size="9">Welcome To Generations!</Text>
-      {/* Expand from one to five columns as space becomes available. New Family
-          opens the create page and Relationships the extended-family view;
-          features without implementations stay explicitly labeled and disabled. */}
-      <Grid columns={{ initial: "1", sm: "2", md: "5" }} gap="4" width="100%">
+      {/* Expand as space becomes available: two columns on small screens and
+          three from md up, so the five cards fill two rows instead of one
+          cramped line. Every card here opens something. */}
+      <Grid columns={{ initial: "1", sm: "2", md: "3" }} gap="4" width="100%">
         <CardOption text="Search User" Icon={Search} onClick={() => query.toggle()} />
-        <CardOption text="List Of Singles (coming soon)" Icon={User} />
+        <CardOption text="List Of Singles" Icon={User} onClick={() => navigate("/singles")} />
         <CardOption text="New Family" Icon={Plus} onClick={() => navigate("/families/new")} />
         <CardOption text="Relationships" Icon={Network} onClick={() => navigate("/relationships")} />
         <CardOption text={dark ? "Light Mode" : "Dark Mode"} Icon={dark ? Sun : Moon} onClick={onToggleTheme} />

@@ -10,6 +10,8 @@ import type { PersonDetailsData, User } from "../helpers/personModel.ts";
  */
 export const ENDPOINTS = {
   people: "/people",
+  /** Everyone who is not a spouse in any marriage. */
+  singles: "/people/singles",
   person: (id: string) => `/people/${encodeURIComponent(id)}`,
   marriages: "/marriages",
   marriage: (id: string) => `/marriages/${encodeURIComponent(id)}`,
