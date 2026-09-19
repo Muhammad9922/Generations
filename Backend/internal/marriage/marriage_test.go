@@ -399,8 +399,8 @@ func TestUpdateMarriage(t *testing.T) {
 		marriageID := createFixtureMarriage(t)
 
 		updatePayload := MarriageUpdate{
-			DateStart: person.DateProper("11-10-2019"),
-			DateEnd:   person.DateProper("11-10-2023"),
+			DateStart: person.Ptr(person.DateProper("11-10-2019")),
+			DateEnd:   person.Ptr(person.DateProper("11-10-2023")),
 		}
 
 		t.Logf("ID For Marrige: %v | Spouse One: %v -- Spouse Two: %v", marriageID, spouseOneID, spouseTwoID)
@@ -420,11 +420,11 @@ func TestUpdateMarriage(t *testing.T) {
 		}
 
 		record := (fetched)[0]
-		if record.Start != updatePayload.DateStart {
-			t.Errorf("Expected start date %v, got %v", updatePayload.DateStart, record.Start)
+		if record.Start != *updatePayload.DateStart {
+			t.Errorf("Expected start date %v, got %v", *updatePayload.DateStart, record.Start)
 		}
-		if record.End != updatePayload.DateEnd {
-			t.Errorf("Expected end date %v, got %v", updatePayload.DateEnd, record.End)
+		if record.End != *updatePayload.DateEnd {
+			t.Errorf("Expected end date %v, got %v", *updatePayload.DateEnd, record.End)
 		}
 	})
 
@@ -432,7 +432,7 @@ func TestUpdateMarriage(t *testing.T) {
 		marriageID := createFixtureMarriage(t)
 
 		updatePayload := MarriageUpdate{
-			DateStart: "11-10-2020",
+			DateStart: person.Ptr(person.DateProper("11-10-2020")),
 		}
 
 		_, err := UpdateMarriageDates(ctx, driver, marriageID, updatePayload)
@@ -455,7 +455,7 @@ func TestUpdateMarriage(t *testing.T) {
 		marriageID := createFixtureMarriage(t)
 
 		updatePayload := MarriageUpdate{
-			DateEnd: "11-10-2024",
+			DateEnd: person.Ptr(person.DateProper("11-10-2024")),
 		}
 
 		_, err := UpdateMarriageDates(ctx, driver, marriageID, updatePayload)
@@ -474,6 +474,31 @@ func TestUpdateMarriage(t *testing.T) {
 		}
 	})
 
+	t.Run("Clearing A Date Removes It", func(t *testing.T) {
+		marriageID := createFixtureMarriage(t)
+
+		// An empty DateProper is the clear sentinel, which is what the HTTP layer
+		// builds from the empty string the dates dialog submits when someone
+		// blanks a field.
+		updatePayload := MarriageUpdate{
+			DateStart: person.Ptr(person.DateProper("")),
+		}
+
+		if _, err := UpdateMarriageDates(ctx, driver, marriageID, updatePayload); err != nil {
+			t.Fatalf("Expected clearing the start date to succeed, got: %v", err)
+		}
+
+		fetched, _ := GetMarriageFromMarriageId(ctx, driver, marriageID)
+		record := (fetched)[0]
+
+		if record.Start != "" {
+			t.Errorf("Expected the start date to be gone, got %v", record.Start)
+		}
+		if record.End != "11-10-2022" { // Must preserve the end date
+			t.Errorf("Expected original end date 11-10-2022 to remain, got %v", record.End)
+		}
+	})
+
 	// --- 2. Failure & Validation Scenarios ---
 
 	testCases := []struct {
@@ -485,36 +510,43 @@ func TestUpdateMarriage(t *testing.T) {
 			name:       "Invalid Marriage ID",
 			marriageID: func() string { return "invalid-uuid-9999" },
 			updatePayload: MarriageUpdate{
-				DateStart: "11-10-2019",
+				DateStart: person.Ptr(person.DateProper("11-10-2019")),
 			},
 		},
 		{
 			name:       "Malformed Start Date",
 			marriageID: func() string { return createFixtureMarriage(t) },
 			updatePayload: MarriageUpdate{
-				DateStart: "invalid-date-format",
+				DateStart: person.Ptr(person.DateProper("invalid-date-format")),
 			},
 		},
 		{
 			name:       "Malformed End Date",
 			marriageID: func() string { return createFixtureMarriage(t) },
 			updatePayload: MarriageUpdate{
-				DateEnd: "32-13-2020",
+				DateEnd: person.Ptr(person.DateProper("32-13-2020")),
 			},
 		},
 		{
 			name:       "Marriage Start Before Spouse Birth Date",
 			marriageID: func() string { return createFixtureMarriage(t) },
 			updatePayload: MarriageUpdate{
-				DateStart: "11-10-1995", // Spouse DOB is 11-10-2000
+				// Spouse DOB is 11-10-2000
+				DateStart: person.Ptr(person.DateProper("11-10-1995")),
 			},
 		},
 		{
 			name:       "Marriage End After Spouse Death Date",
 			marriageID: func() string { return createFixtureMarriage(t) },
 			updatePayload: MarriageUpdate{
-				DateEnd: "11-10-2030", // Spouse DOD is 11-10-2026
+				// Spouse DOD is 11-10-2026
+				DateEnd: person.Ptr(person.DateProper("11-10-2030")),
 			},
+		},
+		{
+			name:          "No Dates Were Sent",
+			marriageID:    func() string { return createFixtureMarriage(t) },
+			updatePayload: MarriageUpdate{},
 		},
 	}
 

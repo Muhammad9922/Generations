@@ -1456,3 +1456,69 @@ func TestGetPersonList_EmptyDatabase_Simulated(t *testing.T) {
 		t.Log("People list is nil, which handles 0 records accurately.")
 	}
 }
+
+// TestUpdateClearsDates covers the half of a PATCH that a pointer alone cannot
+// express: an explicit null means "remove this date", not "leave it as it is".
+// The frontend sends exactly that when someone is marked alive again, so a death
+// date has to be able to disappear.
+func TestUpdateClearsDates(t *testing.T) {
+	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
+	t.Cleanup(func() { driver.Close(ctx) })
+
+	id := uuid.New().String()
+	if _, _, err := CreateNewPerson(ctx, driver, NewPerson{
+		Id:          id,
+		PersonName:  "Clear Dates " + id,
+		Gender:      Male,
+		DateOfBirth: "01-01-1900",
+		Alive:       false,
+		DateOfDeath: "01-01-1950",
+	}); err != nil {
+		t.Fatalf("failed to create person: %v", err)
+	}
+	t.Cleanup(func() { _, _, _ = DeleteUser(ctx, driver, id) })
+
+	// An empty DateProper is the clear sentinel the HTTP layer builds from null.
+	clear := DateProper("")
+
+	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfDeath: &clear}); err != nil {
+		t.Fatalf("expected a death date to be clearable, got error: %v", err)
+	}
+
+	stored, err := GetPerson(ctx, driver, id)
+	if err != nil {
+		t.Fatalf("failed to read the person back: %v", err)
+	}
+	if stored.DateOfDeath != "" {
+		t.Errorf("expected the death date to be gone, got %q", stored.DateOfDeath)
+	}
+	if stored.DateOfBirth != "01-01-1900" {
+		t.Errorf("clearing the death date must not touch the birth date, got %q", stored.DateOfBirth)
+	}
+
+	// Clearing an already-absent date is not an error either.
+	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfDeath: &clear, Alive: Ptr(true)}); err != nil {
+		t.Errorf("expected clearing an absent date to succeed, got error: %v", err)
+	}
+
+	stored, err = GetPerson(ctx, driver, id)
+	if err != nil {
+		t.Fatalf("failed to read the person back: %v", err)
+	}
+	if !stored.Alive {
+		t.Error("expected the person to be alive now")
+	}
+
+	// A birth date has to be clearable too.
+	if _, _, err := UpdatePerson(ctx, driver, id, UpdateUser{DateOfBirth: &clear}); err != nil {
+		t.Fatalf("expected a birth date to be clearable, got error: %v", err)
+	}
+
+	stored, err = GetPerson(ctx, driver, id)
+	if err != nil {
+		t.Fatalf("failed to read the person back: %v", err)
+	}
+	if stored.DateOfBirth != "" {
+		t.Errorf("expected the birth date to be gone, got %q", stored.DateOfBirth)
+	}
+}
