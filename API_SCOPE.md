@@ -18,9 +18,9 @@
 | Base URL | The frontend calls `/api/*`. Vite proxies it to `http://localhost:8080` **and strips the `/api` prefix** (`Frontend/vite.config.ts`). So `/api/people` arrives at your mux as **`/people`** — register the routes *without* `/api`. |
 | CORS | Not needed in development because of that proxy. Only add it if the frontend is served from another origin (`VITE_API_BASE_URL` set to an absolute URL). |
 | Content type | `application/json` for every request with a body and every response. |
-| Field names | The Go structs have **no json tags**, so the field names are the Go names: `Id`, `Name`, `PersonName`, `DateOfBirth`, `DeateOfDeath`, `Gender`, `Alive`, `Spouse`, `Chidren`, `StartOfFamily`, `EndOfFamily`. Keep the two Go typos — the frontend expects them. |
+| Field names | Request bodies and the marriage container keep the Go names (no json tags): `PersonName`, `Name`, `DateOfBirth`, `DateOfDeath`, `Gender`, `Alive`, `Id`, `Spouse`, `Children`, `StartOfFamily`, `EndOfFamily`. The **person objects** inside `GET /people/{id}` are the exception: tag them lowercase — `id`, `name`, `gender`, `alive`, `dateOfBirth`, `dateOfDeath` — exactly like `GET /people`, so the details page reads one casing everywhere. |
 | Dates | `person.DateProper`: `DD-MM-YYYY`, or `""` when unknown. `*DateProper` marshals to `null` when nil; the frontend accepts both. |
-| Nil slices | `*[]User` marshals to `null` when nil. The frontend treats a null `Spouse`/`Chidren` as empty, so either `null` or `[]` is fine. |
+| Nil slices | `*[]User` marshals to `null` when nil. The frontend treats a null `Spouse`/`Children` as empty, so either `null` or `[]` is fine. |
 | `PersonName` vs `Name` | `person.NewPerson` calls it `PersonName`; `integration.User` and `person.UpdateUser` call it `Name`. Create takes `PersonName`, the PATCH body takes `Name`. That is deliberate: both bodies decode straight into the Go structs. |
 | Errors | JSON object with a message: `{"error": "both spouses are male"}`. `message`, `Error` and `Message` are also read. **The string is displayed to the user as-is**, so return user-facing sentences (the existing `errors.New(...)` texts are already suitable). |
 | Status codes | `200` ok · `201` created · `400` rejected write / bad body · `404` unknown person or marriage · `405` wrong method · `500` failure. A non-JSON body is reported to the user as an error, so always answer JSON. |
@@ -131,14 +131,16 @@ Map dates through the existing `person.GetProperDate(...)` so Neo4j dates become
 
 ```json
 {
-  "Person": { "Id": "…", "Name": "…", "DateOfBirth": "14-03-1980", "DeateOfDeath": "", "Gender": "Male", "Alive": true },
+  "Person": { "id": "…", "name": "…", "dateOfBirth": "14-03-1980", "dateOfDeath": "", "gender": "Male", "alive": true },
   "ParentsMarriage": {
     "Id": "…", "Spouse": [ { "…": "User" }, { "…": "User" } ],
-    "Chidren": [ { "…": "User" } ], "StartOfFamily": null, "EndOfFamily": null
+    "Children": [ { "…": "User" } ], "StartOfFamily": null, "EndOfFamily": null
   },
-  "Marriages": [ { "Id": "…", "Spouse": [ … ], "Chidren": [ … ], "StartOfFamily": "12-06-2005", "EndOfFamily": null } ]
+  "Marriages": [ { "Id": "…", "Spouse": [ … ], "Children": [ … ], "StartOfFamily": "12-06-2005", "EndOfFamily": null } ]
 }
 ```
+
+Note the casing: the person objects — `Person`, every entry of `Spouse` and every entry of `Children` — use the **lowercase list keys** (`id`, `name`, `gender`, `alive`, `dateOfBirth`, `dateOfDeath`). Only the marriage container around them keeps the Go names `Id`, `Spouse`, `Children`, `StartOfFamily`, `EndOfFamily`. This mirrors `finalPeopleDesign` in `Backend/cmd/server/person/query.go`, which the frontend's `User` type matches.
 
 `ParentsMarriage` is `null` when the person is in no marriage as a child, and `Marriages` is `[]` (never `null`, though the frontend tolerates either) when they are a spouse in none.
 
@@ -194,20 +196,31 @@ func (a *api) certificate(marriageId string) (*FamilyCertificate, error) {
 	kids, err := children.GetChildren(a.ctx, a.driver, marriageId)
 	if err != nil { return nil, err }
 
-	spouses := []User{toUser(oneId, one), toUser(twoId, two)}
-	chidren := []User{}
-	for _, kid := range kids { chidren = append(chidren, toUser(kid.Id, &kid)) }
+	spouses := []wirePerson{toUser(oneId, one), toUser(twoId, two)}
+	childUsers := []wirePerson{}
+	for _, kid := range kids { childUsers = append(childUsers, toUser(kid.Id, &kid)) }
 
 	start, end := rows[0].Start, rows[0].End
-	return &FamilyCertificate{Id: marriageId, Spouse: &spouses, Chidren: &chidren, StartOfFamily: &start, EndOfFamily: &end}, nil
+	return &FamilyCertificate{Id: marriageId, Spouse: &spouses, Children: &childUsers, StartOfFamily: &start, EndOfFamily: &end}, nil
 }
 
-func toUser(id string, p *person.NewPerson) User {
-	return User{Id: id, Name: p.PersonName, DateOfBirth: p.DateOfBirth, DeateOfDeath: p.DateOfDeath, Gender: p.Gender, Alive: p.Alive}
+// wirePerson is the person shape this endpoint sends. These json tags are what
+// make it match GET /people, so the frontend's User type reads one casing.
+type wirePerson struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Gender      string `json:"gender"`
+	Alive       bool   `json:"alive"`
+	DateOfBirth string `json:"dateOfBirth"`
+	DateOfDeath string `json:"dateOfDeath"`
+}
+
+func toUser(id string, p *person.NewPerson) wirePerson {
+	return wirePerson{ID: id, Name: p.PersonName, DateOfBirth: string(p.DateOfBirth), DateOfDeath: string(p.DateOfDeath), Gender: string(p.Gender), Alive: p.Alive}
 }
 ```
 
-`integration/get_family.go` already contains this `NewPerson` → `User` mapping, so copying its field assignment keeps things consistent. `*[]User` and `*DateProper` give you `null` for a marriage with no children or no end date, which the frontend handles.
+`integration/get_family.go` already contains a `NewPerson` → user mapping, so only the json tags are new: adding them is what keeps the person keys lowercase. `*[]wirePerson` and `*DateProper` give you `null` for a marriage with no children or no end date, which the frontend handles.
 
 ---
 
@@ -224,8 +237,10 @@ func toUser(id string, p *person.NewPerson) User {
 - **Response `201`:** the **saved person**, so the client never invents an ID:
 
 ```json
-{ "Id": "a1b2…", "Name": "Ada Lovelace", "DateOfBirth": "10-12-1815", "DeateOfDeath": "", "Gender": "Female", "Alive": true }
+{ "id": "a1b2…", "name": "Ada Lovelace", "dateOfBirth": "10-12-1815", "dateOfDeath": "", "gender": "Female", "alive": true }
 ```
+
+The response echoes the same lowercase person shape as `GET /people/{id}` (see §4.2), so `CreatePersonResponse` and `UpdatePersonResponse` share the frontend's `User` type.
 
 - **Errors:** `400` with a message for each rule `CreateNewPerson` already enforces — missing name, invalid gender, malformed or impossible dates, `Alive: true` together with a death date.
 - **Connect it:**
@@ -239,7 +254,7 @@ name, id, err := person.CreateNewPerson(a.ctx, a.driver, person.NewPerson{
 	Alive:       body.Alive,
 })
 if err != nil { a.fail(w, 400, err); return }
-a.write(w, 201, User{Id: id, Name: name, DateOfBirth: body.DateOfBirth, DeateOfDeath: body.DateOfDeath, Gender: body.Gender, Alive: body.Alive})
+a.write(w, 201, wirePerson{ID: id, Name: name, DateOfBirth: body.DateOfBirth, DateOfDeath: body.DateOfDeath, Gender: body.Gender, Alive: body.Alive})
 ```
 
 `params.Id` is left empty so the package generates a UUID.

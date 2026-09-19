@@ -60,7 +60,7 @@ export default function FamilyView({ id, people, onPeopleChanged }: Props) {
     setCreatingChild(true);
   };
   /** Opens any card as the primary person, through the same route the palette uses. */
-  const openPerson = (person: User) => navigate(`/people/${encodeURIComponent(person.Id)}`);
+  const openPerson = (person: User) => navigate(`/people/${encodeURIComponent(person.id)}`);
   useEffect(() => {
     // A superseded request is cancelled, so a slow answer cannot replace a newer
     // one. `loaded` stays true across refreshes to avoid a loading flash.
@@ -87,20 +87,20 @@ export default function FamilyView({ id, people, onPeopleChanged }: Props) {
     onPeopleChanged();
     refresh();
   } });
-  const card = (user: User, label: string, familyId?: string, focal = false, removable = false) => <FamilyPersonCard key={`${focal ? "focal" : familyId ?? "person"}-${user.Id}`}
+  const card = (user: User, label: string, familyId?: string, focal = false, removable = false) => <FamilyPersonCard key={`${focal ? "focal" : familyId ?? "person"}-${user.id}`}
     user={user} label={label} familyId={familyId} highlighted={!!familyId && active === familyId}
     onHover={focal ? () => setHovered(null) : setHovered} onFocus={focal ? () => setFocused(null) : setFocused} onEdit={editUser}
     onOpen={focal ? undefined : openPerson}
     onRemoveChild={removable && familyId ? (child, trigger) => openConfirm({
       title: "Remove child?",
-      description: `${child.Name} is removed from ${label}. The marriage and both spouses stay; this person is simply no longer their child.`,
+      description: `${child.name} is removed from ${label}. The marriage and both spouses stay; this person is simply no longer their child.`,
       confirmLabel: "Remove child",
-      save: async () => { await removeChild(familyId, child.Id); refresh(); },
+      save: async () => { await removeChild(familyId, child.id); refresh(); },
     }, trigger) : undefined} />;
   const label = (marriageId: string) => `Family ${data.Marriages.findIndex((item) => item.Id === marriageId) + 1}`;
   /** Disbanding a marriage orphans the children it produced, so say how many. */
   const delinkDescription = (marriage: FamilyCertificate) => {
-    const count = (marriage.Chidren ?? []).length;
+    const count = (marriage.Children ?? []).length;
     const orphaned = count === 0 ? "" : count === 1 ? ", and its child is left without parents" : `, and its ${count} children are left without parents`;
     return `${label(marriage.Id)} is disbanded: the spouse is unlinked${orphaned}. The people themselves are kept.`;
   };
@@ -111,9 +111,9 @@ export default function FamilyView({ id, people, onPeopleChanged }: Props) {
     setRestoreMenuFocus(false);
   };
   return <>
-    <header className="family-heading"><span className="family-eyebrow">YOUR FAMILY, CONNECTED</span><h1>{data.Person.Name}</h1>
+    <header className="family-heading"><span className="family-eyebrow">YOUR FAMILY, CONNECTED</span><h1>{data.Person.name}</h1>
       <p>Hover or focus a spouse or child to illuminate their family.</p>
-      <p className="family-notice">Every group here is a marriage: the marriage {data.Person.Name} is a child of, plus every marriage they are a spouse in.</p>
+      <p className="family-notice">Every group here is a marriage: the marriage {data.Person.name} is a child of, plus every marriage they are a spouse in.</p>
     </header>
     <div className="family-layout">
       <section><h2>Parents <small>the marriage they are a child of</small></h2>
@@ -123,9 +123,9 @@ export default function FamilyView({ id, people, onPeopleChanged }: Props) {
         </div>
         {parentsMarriage && <button className="family-add family-unlink" onClick={(event) => openConfirm({
           title: "Delete parents?",
-          description: `${data.Person.Name} is removed as a child of their parents' marriage. The two parents stay married to each other; they are simply no longer linked as ${data.Person.Name}'s parents.`,
+          description: `${data.Person.name} is removed as a child of their parents' marriage. The two parents stay married to each other; they are simply no longer linked as ${data.Person.name}'s parents.`,
           confirmLabel: "Delete parents",
-          save: async () => { await removeChild(parentsMarriage.Id, data.Person.Id); refresh(); },
+          save: async () => { await removeChild(parentsMarriage.Id, data.Person.id); refresh(); },
         }, event.currentTarget)}><Trash2 size={16} aria-hidden="true" />Delete parents<span>Delinks this person; the parents stay married</span></button>}
       </section>
       <section><h2 ref={spousesHeading} tabIndex={-1}>Person & spouses</h2>{card(data.Person, "Selected person", active ?? undefined, true)}
@@ -145,7 +145,7 @@ export default function FamilyView({ id, people, onPeopleChanged }: Props) {
             }, trigger)} />
         </div>)}</div>
         <button className="family-add" onClick={() => setCreatingSpouse(true)}><Plus />Add spouse</button>
-        <button className="family-add" onClick={() => openChildCreator(null)} disabled={!data.Marriages.some((marriage) => otherSpouses(marriage, id).length) && !people.some((person) => person.id !== id && person.gender !== data.Person.Gender)}><Plus />Add child<span>Choose an existing spouse or another eligible person</span></button>
+        <button className="family-add" onClick={() => openChildCreator(null)} disabled={!data.Marriages.some((marriage) => otherSpouses(marriage, id).length) && !people.some((person) => person.id !== id && person.gender !== data.Person.gender)}><Plus />Add child<span>Choose an existing spouse or another eligible person</span></button>
       </section>
       <section><h2>Children <small>{children.length} · Oldest first</small></h2>
         <div className="children-grid">{children.map(({ user, familyId }) => card(user, label(familyId), familyId, false, true))}</div>
@@ -161,7 +161,7 @@ export default function FamilyView({ id, people, onPeopleChanged }: Props) {
     {creatingParents && <ParentCreatorDialog child={data.Person} people={people} close={() => setCreatingParents(false)} save={async (parents) => {
       // Adding parents is creating the marriage they are the spouses of, with
       // this person linked as its child.
-      await createMarriage({ SpouseOne: parents[0].Id, SpouseTwo: parents[1].Id, DateStart: "", DateEnd: "", childrenIds: [data.Person.Id] });
+      await createMarriage({ SpouseOne: parents[0].id, SpouseTwo: parents[1].id, DateStart: "", DateEnd: "", childrenIds: [data.Person.id] });
       onPeopleChanged();
       refresh();
     }} />}
