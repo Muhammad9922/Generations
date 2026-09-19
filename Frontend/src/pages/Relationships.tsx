@@ -112,7 +112,7 @@ export default function Relationships({ people, loading, error }: Props) {
 
   return (
     <main className="person-details">
-      <div className="relations-toolbar">
+      <div className="page-toolbar">
         {/* Router links navigate without reloading App or its shared people data. */}
         <Button asChild variant="soft" color="gray" highContrast size="3" radius="full">
           <Link to="/"><ArrowLeft size={18} aria-hidden="true" />Back home</Link>
@@ -144,10 +144,10 @@ export default function Relationships({ people, loading, error }: Props) {
       {error && <p role="alert">{error}</p>}
 
       {id && !loading && !error && (loaded ? (
-        loadError ? <p role="alert">{loadError} <button type="button" className="relations-retry" onClick={() => setAttempt((value) => value + 1)}>Retry</button></p>
+        loadError ? <p role="alert">{loadError} <button type="button" className="filter-clear" onClick={() => setAttempt((value) => value + 1)}>Retry</button></p>
           : report === null ? <h2 className="relations-empty">Person not found</h2>
             : <>
-              <div className="family-form relations-filters">
+              <div className="family-form filter-bar">
                 <div className="relations-kinds" role="group" aria-label="Relations to show">
                   {RELATION_ORDER.map((kind) => (
                     <button key={kind} type="button" className="relations-kind" aria-pressed={kinds.has(kind)} onClick={() => toggleKind(kind)}>
@@ -173,10 +173,10 @@ export default function Relationships({ people, loading, error }: Props) {
                 <label>Name
                   <input value={query} placeholder="Filter by name" onChange={(event) => setQuery(event.target.value)} />
                 </label>
-                {filtered && <button type="button" className="relations-clear" onClick={clearFilters}>Clear filters</button>}
+                {filtered && <button type="button" className="filter-clear" onClick={clearFilters}>Clear filters</button>}
               </div>
 
-              <p className="relations-summary" role="status">
+              <p className="filter-summary" role="status">
                 {visible.length} of {relatives.length} {relatives.length === 1 ? "relative" : "relatives"}
                 {filtered ? " shown" : ""}
               </p>
@@ -186,9 +186,9 @@ export default function Relationships({ people, loading, error }: Props) {
               ) : groups.length === 0 ? (
                 <p className="family-empty">No relatives match these filters.</p>
               ) : groups.map(({ kind, items }) => (
-                <section className="relations-section" key={kind}>
+                <section className="person-grid-section" key={kind}>
                   <h2>{RELATION_PLURALS[kind]} <small>{items.length}</small></h2>
-                  <div className="relations-grid">
+                  <div className="person-grid">
                     {items.map((relative: Relative) => <FamilyPersonCard key={relative.user.id} user={relative.user}
                       label={relative.via ? `${RELATION_LABELS[kind]} · via ${relative.via}` : RELATION_LABELS[kind]}
                       primaryAction="open" onPrimary={openPerson} />)}
