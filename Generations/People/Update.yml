@@ -1,0 +1,19 @@
+info:
+  name: Update
+  type: http
+  seq: 2
+
+http:
+  method: PATCH
+  url: http://localhost:8080/people/d5c378e3-5295-4631-9676-0562b6a2a445
+  body:
+    type: json
+    data: '{ "Name": "Renamed", "Gender": "Male", "Alive": true, "DateOfBirth": "01-01-1990", "DateOfDeath": null }'
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
