@@ -1,15 +1,13 @@
 import type { PersonDetailsData, User } from "../helpers/personModel.ts";
 
 /**
- * Where the Go API lives. In development `/api` is proxied to
- * http://localhost:8080 (see vite.config.ts), so the browser stays on one
- * origin and the server needs no CORS handling. Set VITE_API_BASE_URL to call
- * the API directly.
+ * Every path the frontend calls, so moving an endpoint is one edit here.
+ *
+ * They are relative to `apiBaseUrl` in `src/config/env.ts` — `/api` unless
+ * `VITE_API_BASE_URL` says otherwise — which in development is proxied to
+ * http://localhost:8080 (see vite.config.ts). The browser therefore stays on one
+ * origin and the server needs no CORS handling.
  */
-const environment = (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env;
-export const API_BASE_URL: string = environment?.VITE_API_BASE_URL || "/api";
-
-/** Every path the frontend calls, so moving an endpoint is one edit here. */
 export const ENDPOINTS = {
   people: "/people",
   person: (id: string) => `/people/${encodeURIComponent(id)}`,
