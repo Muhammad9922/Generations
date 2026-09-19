@@ -20,6 +20,15 @@ type finalPeopleDesign struct {
 	DateOfDeath string `json:"dateOfDeath"`
 }
 
+// writeError answers with the JSON error envelope the frontend reads, {"error": "..."}
+// (API_SCOPE.md §2). http.Error sends text/plain, which http.ts turns into
+// "The API did not answer with JSON (...)" instead of showing the message.
+func writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
 func handleGetAllPeople(driver neo4j.Driver) http.HandlerFunc {
 
 	// 1. Capitalize fields so the JSON encoder can read them.
@@ -32,7 +41,7 @@ func handleGetAllPeople(driver neo4j.Driver) http.HandlerFunc {
 
 		// 2. Move error handling UP. Check this immediately after the database call.
 		if err != nil {
-			http.Error(w, "Failed to retrieve people", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "Failed to retrieve people")
 			return
 		}
 
@@ -55,7 +64,13 @@ func handleGetAllPeople(driver neo4j.Driver) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(allPeople)
+		type responseEnclosed struct {
+			People []finalPeopleDesign `json:"people"`
+		}
+		response := responseEnclosed{
+			People: allPeople,
+		}
+		json.NewEncoder(w).Encode(response)
 	}
 }
 
@@ -63,8 +78,9 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		if r.PathValue("id") == "" {
-			http.Error(w, "Id Must Be Provided", http.StatusForbidden)
+		id := r.PathValue("id")
+		if id == "" {
+			writeError(w, http.StatusBadRequest, "Id Must Be Provided")
 			return
 		}
 
@@ -84,34 +100,41 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 
 		var finalPersonDetail finalPeopleDesign
 		var finalParents *marriageDetail
-		var finalMarriages []marriageDetail
+		var finalMarriages []marriageDetail = []marriageDetail{}
 
 		ctx := r.Context()
 
-		// Getting Person
-		personResponse, err := person.GetPerson(ctx, driver, r.PathValue("id"))
-
-		if personResponse == nil {
-			http.Error(w, "Error While Getting Person", http.StatusNotFound)
-			return
-		}
-
+		// An unknown person is a normal answer (404, and the page shows "Person not
+		// found"). Any other failure is the server's, so it must not be dressed up
+		// as "not found" — GetPerson returns the same nil on a lost connection.
+		exists, err := person.CheckPersonExistence(ctx, driver, person.PersonQuery{ID: id})
 		if err != nil {
-			http.Error(w, "Error While Getting Person", http.StatusBadRequest)
+			writeError(w, http.StatusInternalServerError, "Error While Looking For The Person")
 			return
-		} else {
-			finalPersonDetail.Alive = personResponse.Alive
-			finalPersonDetail.DateOfBirth = string(personResponse.DateOfBirth)
-			finalPersonDetail.DateOfDeath = string(personResponse.DateOfDeath)
-			finalPersonDetail.ID = personResponse.Id
-			finalPersonDetail.Name = personResponse.PersonName
-			finalPersonDetail.Gender = string(personResponse.Gender)
 		}
+		if !exists {
+			writeError(w, http.StatusNotFound, "Person not found")
+			return
+		}
+
+		// Getting Person
+		personResponse, err := person.GetPerson(ctx, driver, id)
+		if err != nil || personResponse == nil {
+			writeError(w, http.StatusInternalServerError, "Error While Getting Person")
+			return
+		}
+
+		finalPersonDetail.Alive = personResponse.Alive
+		finalPersonDetail.DateOfBirth = string(personResponse.DateOfBirth)
+		finalPersonDetail.DateOfDeath = string(personResponse.DateOfDeath)
+		finalPersonDetail.ID = personResponse.Id
+		finalPersonDetail.Name = personResponse.PersonName
+		finalPersonDetail.Gender = string(personResponse.Gender)
 
 		// Parents Of The Person
 		parentsResponse, err := children.GetMarriageThatOfChild(ctx, driver, personResponse.Id)
 		if err != nil { // Because Parent Can Be Nil
-			http.Error(w, "Error While Getting List Of Parent", http.StatusBadRequest)
+			writeError(w, http.StatusInternalServerError, "Error While Getting List Of Parent")
 			return
 		} else {
 			if parentsResponse == nil {
@@ -121,7 +144,7 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 				finalParents.Id = parentsResponse.Id
 				parentsMarriageDetail, err := marriage.GetMarriageFromMarriageId(ctx, driver, parentsResponse.Id)
 				if err != nil || len(parentsMarriageDetail) != 2 {
-					http.Error(w, "Error While Getting Marriage Record For Parents", http.StatusBadRequest)
+					writeError(w, http.StatusInternalServerError, "Error While Getting Marriage Record For Parents")
 					return
 				}
 				spouseOneDetail := parentsMarriageDetail[0]
@@ -133,7 +156,7 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 				// Spouse One
 				spouseOnePerson, err := person.GetPerson(ctx, driver, spouseOneDetail.Id)
 				if err != nil {
-					http.Error(w, "Details For Spouse One Not Found", http.StatusBadRequest)
+					writeError(w, http.StatusInternalServerError, "Details For Spouse One Not Found")
 					return
 				}
 				finalPeopleDesignSpouseOne := finalPeopleDesign{
@@ -149,7 +172,7 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 				// Spouse Two
 				spouseTwoPerson, err := person.GetPerson(ctx, driver, spouseTwoDetail.Id)
 				if err != nil {
-					http.Error(w, "Details For Spouse Two Not Found", http.StatusBadRequest)
+					writeError(w, http.StatusInternalServerError, "Details For Spouse Two Not Found")
 					return
 				}
 				finalPersonDesignSpouseTwo := finalPeopleDesign{
@@ -165,7 +188,7 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 				// Children
 				childrenForMarriage, err := children.GetChildren(ctx, driver, parentsResponse.Id)
 				if err != nil {
-					http.Error(w, "Unable To Find Siblings For Person", http.StatusBadRequest)
+					writeError(w, http.StatusInternalServerError, "Unable To Find Siblings For Person")
 					return
 				}
 
@@ -178,7 +201,7 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 						DateOfBirth: string(child.DateOfBirth),
 						DateOfDeath: string(child.DateOfDeath),
 					}
-					finalParents.Spouse = append(finalParents.Spouse, finalChild)
+					finalParents.Children = append(finalParents.Children, finalChild)
 				}
 			} else {
 				finalParents = nil
@@ -188,80 +211,82 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 		// Get Marriages Of The Person
 		marriagesPerson, err := children.GetMarriageThatOfSpouse(ctx, driver, finalPersonDetail.ID)
 		if err != nil {
-			http.Error(w, "Error While Getting Marriages For The Person", http.StatusBadRequest)
+			writeError(w, http.StatusInternalServerError, "Error While Getting Marriages For The Person")
 			return
 		}
 
-		for _, singleMarriage := range *marriagesPerson {
-			finalMarriageDetail := marriageDetail{
-				Id:            singleMarriage.Id,
-				StartOfFamily: string(singleMarriage.Start),
-				EndOfFamily:   string(singleMarriage.End),
-			}
-
-			childrenDetail, err := children.GetChildren(ctx, driver, finalMarriageDetail.Id)
-			if err != nil {
-				errorMessage := fmt.Sprintf("Error While Getting The Marriage Detail For ID: %v", finalMarriageDetail.Id)
-				http.Error(w, errorMessage, http.StatusBadRequest)
-				return
-			}
-
-			for _, child := range childrenDetail {
-				childDesign := finalPeopleDesign{
-					ID:          child.Id,
-					Name:        child.PersonName,
-					DateOfBirth: string(child.DateOfBirth),
-					DateOfDeath: string(child.DateOfDeath),
-					Gender:      string(child.Gender),
-					Alive:       child.Alive,
+		if marriagesPerson != nil {
+			for _, singleMarriage := range *marriagesPerson {
+				finalMarriageDetail := marriageDetail{
+					Id:            singleMarriage.Id,
+					StartOfFamily: string(singleMarriage.Start),
+					EndOfFamily:   string(singleMarriage.End),
 				}
 
-				finalMarriageDetail.Children = append(finalMarriageDetail.Children, childDesign)
+				childrenDetail, err := children.GetChildren(ctx, driver, finalMarriageDetail.Id)
+				if err != nil {
+					errorMessage := fmt.Sprintf("Error While Getting The Marriage Detail For ID: %v", singleMarriage.Id)
+					writeError(w, http.StatusInternalServerError, errorMessage)
+					return
+				}
+
+				for _, child := range childrenDetail {
+					childDesign := finalPeopleDesign{
+						ID:          child.Id,
+						Name:        child.PersonName,
+						DateOfBirth: string(child.DateOfBirth),
+						DateOfDeath: string(child.DateOfDeath),
+						Gender:      string(child.Gender),
+						Alive:       child.Alive,
+					}
+
+					finalMarriageDetail.Children = append(finalMarriageDetail.Children, childDesign)
+				}
+
+				spouseOneId, spouseTwoId, _, err := marriage.GetSpouses(ctx, driver, marriage.SpouseQueryParams{
+					MarriageId: finalMarriageDetail.Id,
+				})
+
+				if err != nil {
+					errorString := fmt.Sprintf("Error While Getting Spouses Of Marriage: %v", finalMarriageDetail.Id)
+					writeError(w, http.StatusInternalServerError, errorString)
+					return
+				}
+
+				spouseOneDetail, err := person.GetPerson(ctx, driver, spouseOneId)
+				if err != nil {
+					errorString := fmt.Sprintf("Error While Getting Detail Of Person: %v", spouseOneId)
+					writeError(w, http.StatusInternalServerError, errorString)
+					return
+				}
+
+				finalMarriageDetail.Spouse = append(finalMarriageDetail.Spouse, finalPeopleDesign{
+					ID:          spouseOneDetail.Id,
+					Name:        spouseOneDetail.PersonName,
+					Gender:      string(spouseOneDetail.Gender),
+					Alive:       spouseOneDetail.Alive,
+					DateOfBirth: string(spouseOneDetail.DateOfBirth),
+					DateOfDeath: string(spouseOneDetail.DateOfDeath),
+				})
+
+				spouseTwoDetail, err := person.GetPerson(ctx, driver, spouseTwoId)
+				if err != nil {
+					errorString := fmt.Sprintf("Error While Getting Detail Of Person: %v", spouseTwoId)
+					writeError(w, http.StatusInternalServerError, errorString)
+					return
+				}
+
+				finalMarriageDetail.Spouse = append(finalMarriageDetail.Spouse, finalPeopleDesign{
+					ID:          spouseTwoDetail.Id,
+					Name:        spouseTwoDetail.PersonName,
+					DateOfBirth: string(spouseTwoDetail.DateOfBirth),
+					DateOfDeath: string(spouseTwoDetail.DateOfDeath),
+					Gender:      string(spouseTwoDetail.Gender),
+					Alive:       spouseTwoDetail.Alive,
+				})
+
+				finalMarriages = append(finalMarriages, finalMarriageDetail)
 			}
-
-			spouseOneId, spouseTwoId, _, err := marriage.GetSpouses(ctx, driver, marriage.SpouseQueryParams{
-				MarriageId: finalMarriageDetail.Id,
-			})
-
-			if err != nil {
-				errorString := fmt.Sprintf("Error While Getting Spouses Of Marriage: %v", finalMarriageDetail.Id)
-				http.Error(w, errorString, http.StatusBadRequest)
-				return
-			}
-
-			spouseOneDetail, err := person.GetPerson(ctx, driver, spouseOneId)
-			if err != nil {
-				errorString := fmt.Sprintf("Error While Getting Detail Of Person: %v", spouseOneId)
-				http.Error(w, errorString, http.StatusBadRequest)
-				return
-			}
-
-			finalMarriageDetail.Spouse = append(finalMarriageDetail.Spouse, finalPeopleDesign{
-				ID:          spouseOneDetail.Id,
-				Name:        spouseOneDetail.PersonName,
-				Gender:      string(spouseOneDetail.Gender),
-				Alive:       spouseOneDetail.Alive,
-				DateOfBirth: string(spouseOneDetail.DateOfBirth),
-				DateOfDeath: string(spouseOneDetail.DateOfDeath),
-			})
-
-			spouseTwoDetail, err := person.GetPerson(ctx, driver, spouseTwoId)
-			if err != nil {
-				errorString := fmt.Sprintf("Error While Getting Detail Of Person: %v", spouseTwoId)
-				http.Error(w, errorString, http.StatusBadRequest)
-				return
-			}
-
-			finalMarriageDetail.Spouse = append(finalMarriageDetail.Spouse, finalPeopleDesign{
-				ID:          spouseTwoDetail.Id,
-				Name:        spouseTwoDetail.PersonName,
-				DateOfBirth: string(spouseTwoDetail.DateOfBirth),
-				DateOfDeath: string(spouseTwoDetail.DateOfDeath),
-				Gender:      string(spouseTwoDetail.Gender),
-				Alive:       spouseTwoDetail.Alive,
-			})
-
-			finalMarriages = append(finalMarriages, finalMarriageDetail)
 		}
 
 		finalPersonCertificate := PersonCertificate{
