@@ -1,7 +1,11 @@
 package personRouter
 
-import "net/http"
+import (
+	"net/http"
 
-func RegisterPersonRoutes(mux *http.ServeMux) {
+	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
+)
 
+func RegisterPersonRoutes(mux *http.ServeMux, driver neo4j.Driver) {
+	mux.HandleFunc("GET /people", handleGetAllPeople(driver))
 }
