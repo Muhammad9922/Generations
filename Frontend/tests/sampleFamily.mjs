@@ -26,7 +26,7 @@ const WITHOUT_MARRIAGE = new Set([...WITHOUT_PARENTS, "id-5", "id-8"]);
 export function sampleFamily() {
   const users = new Map();
   for (const person of samplePeople) {
-    users.set(person.id, { ...newUser(person.id, person.name, person.dateOfBirth ?? "14-03-1980", person.gender), Alive: person.alive, DeateOfDeath: person.dateOfDeath ?? "" });
+    users.set(person.id, { ...newUser(person.id, person.name, person.dateOfBirth ?? "14-03-1980", person.gender), alive: person.alive, dateOfDeath: person.dateOfDeath ?? "" });
   }
   const relative = (id, name, dateOfBirth = "", gender = "Male") => {
     if (!users.has(id)) users.set(id, newUser(id, name, dateOfBirth, gender));
@@ -42,7 +42,7 @@ export function sampleFamily() {
           relative(`${person.id}-parent-1`, person.personFatherName ?? "Unknown parent", "02-06-1952"),
           relative(`${person.id}-parent-2`, "Amina Saleem", "19-11-1956", "Female"),
         ],
-        Chidren: [self],
+        Children: [self],
         StartOfFamily: null,
         EndOfFamily: null,
       });
@@ -52,7 +52,7 @@ export function sampleFamily() {
       Id: `${person.id}-marriage-1`,
       Spouse: [self, relative(`${person.id}-spouse-1`, "Sara Ahmed", "08-09-1983", "Female")],
       StartOfFamily: "12-06-2005",
-      Chidren: person.id === "id-3" ? null : [
+      Children: person.id === "id-3" ? null : [
         relative(`${person.id}-child-2`, "Yusuf Ahmed", "23-08-2014"),
         relative(`${person.id}-child-1`, "Maryam Ahmed", "05-02-2007", "Female"),
       ],
@@ -64,7 +64,7 @@ export function sampleFamily() {
         Id: `${person.id}-marriage-2`,
         Spouse: [self, relative(`${person.id}-spouse-2`, "Hana Ali", "21-04-1985", "Female")],
         StartOfFamily: "10-02-2017", EndOfFamily: null,
-        Chidren: [
+        Children: [
           relative(`${person.id}-child-4`, "Adam Ahmed", "11-07-2021"),
           relative(`${person.id}-child-3`, "Noor Ahmed", "18-12-2018", "Female"),
         ],
@@ -81,7 +81,7 @@ export function samplePersonDetails(id) {
   if (!person) return null;
   return {
     Person: person,
-    ParentsMarriage: marriages.find((marriage) => (marriage.Chidren ?? []).some((child) => child.Id === id)) ?? null,
-    Marriages: marriages.filter((marriage) => (marriage.Spouse ?? []).some((spouse) => spouse.Id === id)),
+    ParentsMarriage: marriages.find((marriage) => (marriage.Children ?? []).some((child) => child.id === id)) ?? null,
+    Marriages: marriages.filter((marriage) => (marriage.Spouse ?? []).some((spouse) => spouse.id === id)),
   };
 }

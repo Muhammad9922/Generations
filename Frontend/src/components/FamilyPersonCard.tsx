@@ -28,20 +28,20 @@ export default function FamilyPersonCard({ user, label, familyId, highlighted, o
         style={familyId ? { "--family-color": familyColor(familyId) } as CSSProperties : undefined}
         onPointerEnter={() => onHover(familyId ?? null)} onPointerLeave={() => onHover(null)}
         onFocus={() => onFocus(familyId ?? null)} onBlur={() => onFocus(null)}
-        onClick={() => onEdit(user)} aria-label={`Edit ${user.Name}, ${label}`}>
+        onClick={() => onEdit(user)} aria-label={`Edit ${user.name}, ${label}`}>
         <span className="family-card-top"><span className="family-avatar"><UserRound size={22} /></span><Pencil size={14} /></span>
         <span className="family-eyebrow">{label}</span>
-        <strong>{user.Name}</strong>
-        <span>{ageLabel(user)} · {user.Gender}</span>
-        <span>Born {user.DateOfBirth || "unknown"}</span>
-        {!user.Alive && <span>Died {user.DeateOfDeath || "unknown"}</span>}
-        <small>ID: {user.Id}</small>
+        <strong>{user.name}</strong>
+        <span>{ageLabel(user)} · {user.gender}</span>
+        <span>Born {user.dateOfBirth || "unknown"}</span>
+        {!user.alive && <span>Died {user.dateOfDeath || "unknown"}</span>}
+        <small>ID: {user.id}</small>
       </button>
       {(onOpen || onRemoveChild) && <div className="family-card-actions">
-        {onOpen && <button type="button" className="family-open" onClick={() => onOpen(user)} aria-label={`Open ${user.Name} as the primary person`}>
+        {onOpen && <button type="button" className="family-open" onClick={() => onOpen(user)} aria-label={`Open ${user.name} as the primary person`}>
           <ArrowUpRight size={14} aria-hidden="true" />Open
         </button>}
-        {onRemoveChild && <button type="button" className="family-remove" onClick={(event) => onRemoveChild(user, event.currentTarget)} aria-label={`Remove ${user.Name} from ${label}`}>
+        {onRemoveChild && <button type="button" className="family-remove" onClick={(event) => onRemoveChild(user, event.currentTarget)} aria-label={`Remove ${user.name} from ${label}`}>
           <X size={14} aria-hidden="true" />Remove child
         </button>}
       </div>}

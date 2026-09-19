@@ -9,7 +9,7 @@ The Go packages for all of this already exist. What is missing is the `net/http`
 - **Base URL** `/api`, proxied to `http://localhost:8080` by Vite (`vite.config.ts`), so the API needs no CORS handling in development. Set `VITE_API_BASE_URL` to call it directly.
 - **Errors** must be JSON with a message: `{ "error": "both spouses are male" }`. That string is shown to the user as-is, so write user-facing sentences. `message`, `Error` and `Message` are accepted too. A non-JSON body is reported as an error instead of being silently accepted.
 - **Status codes**: `200`/`201` for success, `404` for an unknown person, `400` for a rejected write, `500` for a failure.
-- **Field names** come from the Go structs, which carry **no json tags**, so the names are the Go names: `Id`, `Name`, `PersonName`, `DateOfBirth`, `DeateOfDeath`, `Gender`, `Alive`, `Spouse`, `Chidren`, `StartOfFamily`, `EndOfFamily`.
+- **Field names** are mixed, because only the person shape carries json tags. A person is always `id`, `name`, `gender`, `alive`, `dateOfBirth`, `dateOfDeath` — both in `GET /people` and inside a `GET /people/:id` certificate (the `finalPeopleDesign` tags in `Backend/cmd/server/person/query.go`). The marriage container around those people keeps its Go names: `Id`, `Spouse`, `Children`, `StartOfFamily`, `EndOfFamily`. Request bodies keep the Go names too: `PersonName` on create, `Name` on the PATCH, plus `Gender`, `DateOfBirth`, `DateOfDeath`, `Alive`.
 - **Dates** are `person.DateProper`: `DD-MM-YYYY`, or `""` / `null` when unknown. `*[]User` and `*DateProper` marshal to `null` when nil; the UI treats a null spouse or child list as empty.
 
 ## Endpoints
@@ -40,24 +40,24 @@ The Go packages for all of this already exist. What is missing is the `net/http`
 
 ```ts
 User {
-  Id: string,
-  Name: string,
-  DateOfBirth: string,        // DD-MM-YYYY, or ""
-  DeateOfDeath: string,       // Go spelling
-  Gender: "Male" | "Female",
-  Alive: boolean,
+  id: string,
+  name: string,
+  dateOfBirth: string,        // DD-MM-YYYY, or ""
+  dateOfDeath: string,
+  gender: "Male" | "Female",
+  alive: boolean,
 }
 
 FamilyCertificate {
   Id: string,
   Spouse?: User[] | null,     // both partners
-  Chidren?: User[] | null,    // Go spelling; holds this person on their parents' marriage
+  Children?: User[] | null,   // holds this person on their parents' marriage
   StartOfFamily?: string | null,
   EndOfFamily?: string | null,
 }
 ```
 
-Build it from the packages that already exist: `person.GetPerson`, `children.GetMarriageThatOfChild(childId)` for the parents' marriage, `children.GetMarriageThatOfSpouse(spouseId)` for the rest, then `marriage.GetSpouses` and `children.GetChildren` per marriage to fill `Spouse` and `Chidren`. `integration.GetFamilyCertificate` is close, but it returns the single certificate found from a spouse, so it covers neither the parents' marriage nor several marriages.
+Build it from the packages that already exist: `person.GetPerson`, `children.GetMarriageThatOfChild(childId)` for the parents' marriage, `children.GetMarriageThatOfSpouse(spouseId)` for the rest, then `marriage.GetSpouses` and `children.GetChildren` per marriage to fill `Spouse` and `Children`. `integration.GetFamilyCertificate` is close, but it returns the single certificate found from a spouse, so it covers neither the parents' marriage nor several marriages.
 
 An ID that belongs to nobody — or to a marriage — must answer `404`; the page then shows "Person not found".
 
@@ -65,14 +65,14 @@ An ID that belongs to nobody — or to a marriage — must answer `404`; the pag
 
 ```ts
 CreatePersonRequest   { PersonName, Gender, DateOfBirth, DateOfDeath, Alive }
-UpdatePersonRequest   { PersonName?, Gender?, Alive?, DateOfBirth?, DateOfDeath? }  // omitted = unchanged, null = clear
+UpdatePersonRequest   { Name?, Gender?, Alive?, DateOfBirth?, DateOfDeath? }  // omitted = unchanged, null = clear
 CreateMarriageRequest { SpouseOne, SpouseTwo, DateStart, DateEnd, childrenIds? }
 ```
 
 `POST /people` answers with the saved person, so the client never invents an ID:
 
 ```json
-{ "Id": "…", "Name": "Ada", "Gender": "Female", "DateOfBirth": "10-12-1815", "DeateOfDeath": "", "Alive": true }
+{ "id": "…", "name": "Ada", "gender": "Female", "dateOfBirth": "10-12-1815", "dateOfDeath": "", "alive": true }
 ```
 
 `person.NewPerson` spells the field `PersonName` while `integration.User` spells it `Name`; the handler maps between the two exactly as `integration/get_family.go` already does.

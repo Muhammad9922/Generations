@@ -21,14 +21,15 @@ export const ENDPOINTS = {
 } as const;
 
 /**
- * The list/search model the palette and every selector render. Distinct from
- * `User`, which is the wire model carried inside marriage certificates.
+ * The list/search model the palette and every selector render. It uses the same
+ * lowercase keys as `User`, the person shape carried inside marriage
+ * certificates.
  */
 export interface Person {
   id: string;
   name: string;
   personFatherName?: string;
-  gender: User["Gender"];
+  gender: User["gender"];
   alive: boolean;
   dateOfBirth?: string;
   dateOfDeath?: string;
@@ -42,7 +43,7 @@ export interface ListPeopleResponse {
 /** Body of `CreatePerson`, matching the Go `person.NewPerson`. */
 export interface CreatePersonRequest {
   PersonName: string;
-  Gender: User["Gender"];
+  Gender: User["gender"];
   /** `DateProper`: `DD-MM-YYYY`, or `""` when unknown. */
   DateOfBirth: string;
   DateOfDeath: string;
@@ -60,7 +61,7 @@ export type CreatePersonResponse = User;
  */
 export interface UpdatePersonRequest {
   Name?: string;
-  Gender?: User["Gender"];
+  Gender?: User["gender"];
   Alive?: boolean;
   DateOfBirth?: string | null;
   DateOfDeath?: string | null;

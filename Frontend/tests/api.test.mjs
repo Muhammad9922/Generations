@@ -30,12 +30,12 @@ test("getAllPeople reads the list from GET /people", async () => {
 });
 
 test("createPerson posts the CreatePerson body and resolves the saved person", async () => {
-  const created = { Id: "new-1", Name: "Ada", Gender: "Female", DateOfBirth: "10-12-1815", DeateOfDeath: "", Alive: true };
+  const created = { id: "new-1", name: "Ada", gender: "Female", dateOfBirth: "10-12-1815", dateOfDeath: "", alive: true };
   const stub = stubFetch(() => json(created, 201));
   try {
     const person = await createPerson({ PersonName: "Ada", Gender: "Female", DateOfBirth: "10-12-1815", DateOfDeath: "", Alive: true });
     // The ID comes from the API, never from the client.
-    assert.equal(person.Id, "new-1");
+    assert.equal(person.id, "new-1");
     assert.equal(stub.calls[0].method, "POST");
     assert.equal(stub.calls[0].url, "/api/people");
     assert.deepEqual(stub.calls[0].body, { PersonName: "Ada", Gender: "Female", DateOfBirth: "10-12-1815", DateOfDeath: "", Alive: true });
@@ -43,11 +43,11 @@ test("createPerson posts the CreatePerson body and resolves the saved person", a
 });
 
 test("updateUserDetails patches the profile and clears the death date of anyone alive", async () => {
-  const saved = { Id: "id-1", Name: "Renamed", Gender: "Male", DateOfBirth: "01-01-1990", DeateOfDeath: "", Alive: true };
+  const saved = { id: "id-1", name: "Renamed", gender: "Male", dateOfBirth: "01-01-1990", dateOfDeath: "", alive: true };
   const stub = stubFetch(() => json(saved));
   try {
-    const person = await updateUserDetails({ Id: "id-1", Name: "Renamed", Gender: "Male", DateOfBirth: "01-01-1990", DeateOfDeath: "05-05-2020", Alive: true });
-    assert.equal(person.Name, "Renamed");
+    const person = await updateUserDetails({ id: "id-1", name: "Renamed", gender: "Male", dateOfBirth: "01-01-1990", dateOfDeath: "05-05-2020", alive: true });
+    assert.equal(person.name, "Renamed");
     assert.equal(stub.calls[0].method, "PATCH");
     assert.equal(stub.calls[0].url, "/api/people/id-1");
     assert.deepEqual(stub.calls[0].body, { Name: "Renamed", Gender: "Male", Alive: true, DateOfBirth: "01-01-1990", DateOfDeath: null });
@@ -58,7 +58,7 @@ test("getPersonDetails resolves the payload, and null for an unknown person", as
   const stub = stubFetch((url) => url.endsWith("/id-1") ? json(samplePersonDetails("id-1")) : json({ error: "User Does Not Exists" }, 404));
   try {
     const person = await getPersonDetails("id-1");
-    assert.equal(person.Person.Id, "id-1");
+    assert.equal(person.Person.id, "id-1");
     assert.equal(person.Marriages.length, 2);
     assert.equal(stub.calls[0].url, "/api/people/id-1");
     // 404 is a normal answer: the page shows "Person not found".

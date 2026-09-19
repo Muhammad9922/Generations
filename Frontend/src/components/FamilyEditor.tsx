@@ -28,18 +28,18 @@ export default function FamilyEditor({ request, close, onCloseFocus }: { request
     try {
       if (request.kind === "users") {
         for (const user of users) {
-          if (!user.Name.trim()) throw new Error("Every person needs a name.");
-          for (const date of [user.DateOfBirth, user.DeateOfDeath]) {
+          if (!user.name.trim()) throw new Error("Every person needs a name.");
+          for (const date of [user.dateOfBirth, user.dateOfDeath]) {
             if (date && dateValue(date) === null) throw new Error("Enter a valid calendar date.");
           }
-          const birth = dateValue(user.DateOfBirth);
-          const death = dateValue(user.DeateOfDeath);
+          const birth = dateValue(user.dateOfBirth);
+          const death = dateValue(user.dateOfDeath);
           if (birth !== null && birth > Date.now()) throw new Error("Birth date cannot be in the future.");
-          if (!user.Alive && death !== null && (death > Date.now() || (birth !== null && death < birth))) {
+          if (!user.alive && death !== null && (death > Date.now() || (birth !== null && death < birth))) {
             throw new Error("Death date must be after birth and not in the future.");
           }
         }
-        await request.save(users.map((user) => ({ ...user, Name: user.Name.trim(), DeateOfDeath: user.Alive ? "" : user.DeateOfDeath })));
+        await request.save(users.map((user) => ({ ...user, name: user.name.trim(), dateOfDeath: user.alive ? "" : user.dateOfDeath })));
       } else if (request.kind === "marriage") {
         const first = reverseDate(start);
         const last = reverseDate(end);
@@ -58,14 +58,14 @@ export default function FamilyEditor({ request, close, onCloseFocus }: { request
         <Dialog.Description size="2" mb="4">{description}</Dialog.Description>
         <form className="family-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
           {users.map((user, index) => (
-            <fieldset key={user.Id}>
+            <fieldset key={user.id}>
               <legend>{users.length === 2 ? `Parent ${index + 1}` : "Person details"}</legend>
-              <label>Name<input required value={user.Name} onChange={(event) => update(index, { Name: event.target.value })} /></label>
-              <label>Date of birth<input type="date" value={toInputDate(user.DateOfBirth)} onChange={(event) => update(index, { DateOfBirth: reverseDate(event.target.value) })} /></label>
-              <label>Gender<select value={user.Gender} onChange={(event) => update(index, { Gender: event.target.value as User["Gender"] })}><option>Male</option><option>Female</option></select></label>
-              <label className="family-check"><input type="checkbox" checked={user.Alive} onChange={(event) => update(index, { Alive: event.target.checked })} />Alive</label>
-              {!user.Alive && <label>Date of death<input type="date" value={toInputDate(user.DeateOfDeath)} onChange={(event) => update(index, { DeateOfDeath: reverseDate(event.target.value) })} /></label>}
-              <small>ID: {user.Id}</small>
+              <label>Name<input required value={user.name} onChange={(event) => update(index, { name: event.target.value })} /></label>
+              <label>Date of birth<input type="date" value={toInputDate(user.dateOfBirth)} onChange={(event) => update(index, { dateOfBirth: reverseDate(event.target.value) })} /></label>
+              <label>Gender<select value={user.gender} onChange={(event) => update(index, { gender: event.target.value as User["gender"] })}><option>Male</option><option>Female</option></select></label>
+              <label className="family-check"><input type="checkbox" checked={user.alive} onChange={(event) => update(index, { alive: event.target.checked })} />Alive</label>
+              {!user.alive && <label>Date of death<input type="date" value={toInputDate(user.dateOfDeath)} onChange={(event) => update(index, { dateOfDeath: reverseDate(event.target.value) })} /></label>}
+              <small>ID: {user.id}</small>
             </fieldset>
           ))}
           {request.kind === "marriage" && <>
