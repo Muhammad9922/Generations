@@ -1,6 +1,6 @@
 import { Flex, Section, Text, Card, Grid } from "@radix-ui/themes";
 import { useKBar } from "kbar";
-import { Moon, Plus, Search, Sun, User, type LucideIcon } from "lucide-react";
+import { Moon, Network, Plus, Search, Sun, User, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router";
 
 /**
@@ -33,13 +33,14 @@ export default function HeroSection({ dark, onToggleTheme }: { dark: boolean; on
   return (
     <Section className="flex flex-col gap-9">
       <Text size="9">Welcome To Generations!</Text>
-      {/* Expand from one to four columns as space becomes available. New Family
-          opens the create page; features without implementations stay
-          explicitly labeled and disabled. */}
-      <Grid columns={{ initial: "1", sm: "2", md: "4" }} gap="4" width="100%">
+      {/* Expand from one to five columns as space becomes available. New Family
+          opens the create page and Relationships the extended-family view;
+          features without implementations stay explicitly labeled and disabled. */}
+      <Grid columns={{ initial: "1", sm: "2", md: "5" }} gap="4" width="100%">
         <CardOption text="Search User" Icon={Search} onClick={() => query.toggle()} />
         <CardOption text="List Of Singles (coming soon)" Icon={User} />
         <CardOption text="New Family" Icon={Plus} onClick={() => navigate("/families/new")} />
+        <CardOption text="Relationships" Icon={Network} onClick={() => navigate("/relationships")} />
         <CardOption text={dark ? "Light Mode" : "Dark Mode"} Icon={dark ? Sun : Moon} onClick={onToggleTheme} />
       </Grid>
       <Text size="2" color="gray">Press Ctrl+K / ⌘K to search people and commands.</Text>

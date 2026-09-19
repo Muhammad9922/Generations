@@ -6,6 +6,7 @@ import { KBarProvider, type Action } from "kbar";
 import { Home as HomeIcon, Moon } from "lucide-react";
 import Home from "./pages/Home";
 import NewFamily from "./pages/NewFamily";
+import Relationships from "./pages/Relationships";
 import CommandPalette from "./components/CommandPalette";
 import { createPersonActions } from "./helpers/PersonActions.ts";
 import { getAllPeople, type Person } from "./api/people.ts";
@@ -76,6 +77,11 @@ export default function App() {
           {/* A new family has no person yet, so it shares the details layout
               without the shared people load the person route needs. */}
           <Route path="families/new" element={<NewFamily onPeopleChanged={refreshPeople} />} />
+          {/* Relationships are derived from the same records, and share the
+              people list the picker offers. The optional person is in the URL
+              so a report can be reloaded or pasted into another tab. */}
+          <Route path="relationships" element={<Relationships people={people} loading={loading} error={error} />} />
+          <Route path="relationships/:id" element={<Relationships people={people} loading={loading} error={error} />} />
           <Route path="*" element={<main className="p-8"><h1>Page not found</h1><Link to="/">Go home</Link></main>} />
         </Routes>
       </KBarProvider>
