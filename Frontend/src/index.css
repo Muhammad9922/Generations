@@ -104,6 +104,24 @@
 .family-form small { color: var(--gray-11); overflow-wrap: anywhere; }
 .child-spouse-fields { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--gray-6); border-radius: 12px; background: var(--color-panel-solid); }
 .child-spouse-fields strong { color: var(--gray-11); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+/* Person picker: a searchable, virtualized listbox. The trigger reuses the
+   .family-form combobox styling above, so it looks like the other selects
+   while the popup renders only the visible rows of a very long list. */
+.person-picker-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-picker-trigger > svg { flex-shrink: 0; color: var(--gray-11); }
+.person-picker-trigger[data-placeholder="true"] > span { color: var(--gray-10); }
+/* Radix portals the popup, so it clears the dialog's clipping, flips when it
+   runs out of room, and — as the topmost layer — keeps Escape to itself. */
+.person-picker-popup { display: flex; flex-direction: column; overflow: hidden; padding: 0; width: var(--radix-popover-trigger-width); max-height: var(--radix-popover-content-available-height, 420px); border: 1px solid var(--gray-6); border-radius: 12px; background: var(--color-panel-solid); color: var(--gray-12); box-shadow: var(--shadow-5); }
+.person-picker-search { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--gray-6); color: var(--gray-11); }
+.family-form input.person-picker-input { min-height: 40px; padding: 8px 0; border: 0; border-radius: 0; background: transparent; }
+.family-form input.person-picker-input:focus-visible { outline: none; }
+.person-picker-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.person-picker-window { position: relative; margin: 0 6px; }
+.person-picker-group { position: absolute; left: 0; right: 0; display: flex; align-items: center; padding: 0 10px; color: var(--gray-11); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.person-picker-option { position: absolute; left: 0; right: 0; display: flex; align-items: center; padding: 0 10px; border-radius: 7px; font-size: 13px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-picker-option[data-active="true"] { background: var(--accent-4); color: var(--accent-12); }
+.person-picker-empty { padding: 16px 10px; color: var(--gray-11); font-size: 12px; text-align: center; }
 @media (max-width: 1050px) { .family-layout { grid-template-columns: 1fr; } .family-layout section { border-top: 1px solid var(--gray-5); padding-top: 20px; } }
 @media (max-width: 420px) { .spouses-grid, .children-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .family-person { transition: none; } }
