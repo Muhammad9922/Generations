@@ -93,7 +93,10 @@ person with two marriages and two children in each".
 
 ## 7. Add spouse
 
-- [ ] **Add spouse** opens the dialog; the select lists only opposite-gender people who are not already a spouse.
+- [ ] **Add spouse** opens the dialog; the picker lists only opposite-gender people who are not already a spouse.
+- [ ] The picker is searchable: typing narrows the list and starts it at the top, `↑`/`↓` move the highlight (wrapping), `Home`/`End` jump, `Enter` chooses, `Tab` closes.
+- [ ] Opening the picker and scrolling its list stay smooth on a large database — only the rows in view are in the DOM, so scrolling never grows the node count.
+- [ ] `Esc` inside an open picker closes **only** the picker; the dialog stays open. `Esc` again closes the dialog.
 - [ ] "Create new person" reveals name / birth / alive / death fields, with gender locked to the opposite of the focal person.
 - [ ] Submitting without choosing anyone keeps the button disabled.
 - [ ] A new spouse with no name is rejected ("The new spouse needs a name.").
@@ -204,3 +207,4 @@ The Home **New Family** card opens `/families/new`: the person page's layout bef
 - [ ] Creating someone logs `CreatePerson`, then the app navigates to `/people/<new id>` — that new person's own page, with everything enabled and no marriages or parents yet.
 - [ ] The new person appears in the command palette without a full page reload.
 - [ ] Reloading `/people/<new id>` (or pasting it in a new tab) still resolves.
+
