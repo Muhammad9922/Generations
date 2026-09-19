@@ -31,7 +31,7 @@ person with two marriages and two children in each".
 ## 1. Home page and command palette
 
 - [ ] Home shows "Welcome To Generations!" with four cards.
-- [ ] "List Of Singles" and "New Family" are **disabled** and labelled "(coming soon)".
+- [ ] "List Of Singles" is **disabled** and labelled "(coming soon)"; **New Family** is enabled and opens `/families/new`.
 - [ ] "Search User" opens the palette; "Dark Mode" / "Light Mode" toggles the theme and the label flips.
 - [ ] `Ctrl+K` / `⌘K` opens the palette from Home **and** from a person page.
 - [ ] Palette shows sections `Navigation`, `Preferences`, `People`.
@@ -190,3 +190,17 @@ Every card except the selected person's own carries an **Open** button.
 - [ ] Navigating between relatives keeps the palette shortcut (`Ctrl+K`) working, and "Back home" still returns to `/`.
 - [ ] A person opened as primary shows the same family as they do as a card on the page you came from.
 - [ ] A marriage or other non-person ID in the URL (`/people/id-1-marriage-1`) shows "Person not found", not a crash or an empty family.
+
+## 16. New family
+
+The Home **New Family** card opens `/families/new`: the person page's layout before its first person exists.
+
+- [ ] The page uses the person page's layout — Parents, Person & spouses and Children sections — under a "New family" heading, with **Back home** still working.
+- [ ] Everything except **Back home** and **Create new person** is **disabled**: Add parents, Add spouse and Add child.
+- [ ] Each disabled control says "Available once the first person exists"; the Parents tile keeps the person page's tall dashed shape and the Children section reads "Create the first person, then add a spouse before adding children."
+- [ ] The selected person's slot is a dashed placeholder reading "No person yet", not an editable person card, and it has **no** Open button.
+- [ ] **Create new person** opens the dialog; **Cancel** and `Esc` close it without creating anything or navigating.
+- [ ] Submitting with no name is rejected ("The person needs a name.") and a future birth date is rejected.
+- [ ] Creating someone logs `CreatePerson`, then the app navigates to `/people/<new id>` — that new person's own page, with everything enabled and no marriages or parents yet.
+- [ ] The new person appears in the command palette without a full page reload.
+- [ ] Reloading `/people/<new id>` (or pasting it in a new tab) still resolves.
