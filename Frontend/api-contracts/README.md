@@ -19,6 +19,7 @@ the repository root is the same contract written from the server's side.
 | UI action | Method and path | Request body | Response | Go to call |
 | --- | --- | --- | --- | --- |
 | Palette, every selector | `GET /people` | — | `{ "people": Person[] }` | `person.GetPersonList` |
+| List Of Singles | `GET /people/singles` | — | `{ "people": Person[] }` | `person.GetSingleList` |
 | Open a person | `GET /people/:id` | — | `PersonDetailsData`, or `404` | composed in `cmd/server/person/query.go`, see below |
 | Create a person | `POST /people` | `CreatePersonRequest` | the created `User` | `person.CreateNewPerson` |
 | Edit a person | `PATCH /people/:id` | `UpdatePersonRequest` | the saved `User` | `person.UpdatePerson`, then `person.GetPerson` |
@@ -129,6 +130,24 @@ relatives. Someone is only ever labelled by their closest relation to the person
 being read, so an inconsistent record cannot list the same person twice, or as
 their own relative. Only blood relations are reported: the spouse of an uncle is
 not an aunt.
+
+## Who counts as single
+
+`GET /people/singles` answers the same `{ "people": Person[] }` shape as
+`GET /people`, narrowed to people who hold no `MARRIED` edge to a `Marriage`
+node. It is a separate endpoint because being single is a graph fact, not a
+property: answering it from the list endpoint would mean reading every person's
+marriages first.
+
+Two consequences are deliberate. Disbanding a marriage makes both spouses single
+again without their nodes changing, and a widow or widower is **not** single,
+because the marriage that made them a spouse is still recorded — the graph knows
+a marriage happened, not whether it ended.
+
+The query counts an `OPTIONAL MATCH` rather than writing
+`WHERE NOT (p)-[:MARRIED]->(:Marriage)`. The store is Memgraph, which rejects a
+pattern used as an atom expression ("Not yet implemented") and then retries until
+the driver's budget runs out, turning a syntax problem into a 30-second 500.
 
 ## Where the pieces live
 

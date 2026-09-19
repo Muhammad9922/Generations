@@ -31,7 +31,7 @@ person with two marriages and two children in each".
 ## 1. Home page and command palette
 
 - [ ] Home shows "Welcome To Generations!" with five cards.
-- [ ] "List Of Singles" is **disabled** and labelled "(coming soon)"; **New Family** is enabled and opens `/families/new`.
+- [ ] Every card is enabled and opens something: Search User opens the palette, List Of Singles opens `/singles`, New Family `/families/new`, Relationships `/relationships`, and the last card toggles the theme.
 - [ ] "Search User" opens the palette; "Dark Mode" / "Light Mode" toggles the theme and the label flips.
 - [ ] `Ctrl+K` / `⌘K` opens the palette from Home **and** from a person page.
 - [ ] Palette shows sections `Navigation`, `Preferences`, `People`.
@@ -225,4 +225,30 @@ The Home **Relationships** card opens `/relationships`, where one person's exten
 - [ ] A person with nobody linked shows "No relatives are recorded for … yet"; filters that exclude everyone show "No relatives match these filters."
 - [ ] `/relationships/<unknown id>` shows "Person not found", not a crash or an empty report.
 - [ ] Relations by marriage are **not** listed: the wife of an uncle or of a sibling is not reported as an aunt or a sibling.
+
+## 18. List Of Singles
+
+The Home **List Of Singles** card opens `/singles`: everyone the graph records no marriage for.
+
+- [ ] The card is enabled and opens `/singles`; no card on Home is disabled any more.
+- [ ] The list arrives in one request (`GET /people/singles`), not one per person, and the count matches the number of cards.
+- [ ] The heading explains the rule, and the notice says a widow or widower is **not** listed while someone whose marriage was disbanded **is**.
+- [ ] Every card is labelled `Single` and opens that person's page.
+- [ ] **Gender**, **Living**, **Sort by** and **Name** narrow the list, the summary reads "N of M singles shown", and **Clear filters** appears only once a filter is active.
+- [ ] Sorting by Oldest first and Youngest first both leave a person with no recorded birth date at the end.
+- [ ] Filters that exclude everyone show "No single people match these filters."
+- [ ] An empty database shows "No single people are recorded yet."
+- [ ] Stopping the API and reloading reports the failure with a **Retry** that recovers once the API is back.
+- [ ] A married person does **not** appear here, and their own page still lists their spouse.
+
+## 19. Shipping
+
+Both halves build and run as containers.
+
+- [ ] `docker compose up --build` starts the API and the site, and the site answers on `http://localhost:8081`.
+- [ ] The site's `/api/...` requests reach the API container, and a deep link such as `/relationships/<id>` survives a page refresh.
+- [ ] `GET /health` answers `{"status":"ok"}` without touching the graph, and the API container reports healthy.
+- [ ] `NEO4J_URI` points the API at another graph without rebuilding the image.
+- [ ] Changing `API_PORT` / `WEB_PORT` moves the published ports.
+- [ ] `docker compose config` validates the file without starting anything.
 
