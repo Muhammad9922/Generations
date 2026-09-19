@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 	"uuid"
 
@@ -97,7 +98,9 @@ func GetProperDate(val any) DateProper {
 }
 
 func CreateNewPerson(ctx context.Context, driver neo4j.Driver, params NewPerson) (string, string, error) {
-	// Name Is Mandatory
+	// Name Is Mandatory. Trimmed, so a name of nothing but spaces cannot store a
+	// person who renders as a blank card.
+	params.PersonName = strings.TrimSpace(params.PersonName)
 	if params.PersonName == "" {
 		return "", "", errors.New("The Person's Name Must Be Given")
 	}

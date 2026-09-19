@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
@@ -53,10 +54,13 @@ func UpdatePerson(ctx context.Context, driver neo4j.Driver, id string, update Up
 	}
 
 	if update.Name != nil {
-		if *update.Name == "" {
+		// Trimmed for the same reason as on create: a name of only spaces would
+		// render as a blank card.
+		trimmed := strings.TrimSpace(*update.Name)
+		if trimmed == "" {
 			return "", false, fmt.Errorf("%w: name must not be empty", ErrInvalidUpdate)
 		}
-		props["name"] = *update.Name
+		props["name"] = trimmed
 	}
 
 	if update.Gender != nil {
