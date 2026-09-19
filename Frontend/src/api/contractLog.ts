@@ -1,19 +1,14 @@
+import { contractDebugEnabled } from "../config/env.ts";
+
 /**
  * Development-only diagnostics for the API boundary.
  *
- * Every contract call logs its request, response and duration in development so
- * payloads can be checked against the API contract in DevTools.
+ * Every contract call logs its request, response and duration so payloads can
+ * be checked against the API contract in DevTools. Whether logging is on comes
+ * from `VITE_API_CONTRACT_DEBUG`, which defaults to "on while developing" — see
+ * `src/config/env.ts` and `.env`.
  */
 type LogContext = Record<string, unknown>;
-
-const environment = (import.meta as ImportMeta & {
-  env?: { DEV?: boolean; VITE_API_CONTRACT_DEBUG?: string };
-}).env;
-
-function loggingEnabled(): boolean {
-  return environment?.VITE_API_CONTRACT_DEBUG === "true"
-    || (environment?.DEV === true && environment.VITE_API_CONTRACT_DEBUG !== "false");
-}
 
 function logRequest(operation: string, context: LogContext): void {
   const { payload, ...metadata } = context;
@@ -49,16 +44,16 @@ export async function withContractLog<T>(
   resultContext: (result: T) => LogContext = () => ({}),
 ): Promise<T> {
   const startedAt = performance.now();
-  if (loggingEnabled()) logRequest(operation, context);
+  if (contractDebugEnabled) logRequest(operation, context);
 
   try {
     const result = await execute();
-    if (loggingEnabled()) {
+    if (contractDebugEnabled) {
       logResponse(operation, { ...context, ...resultContext(result) }, result, Math.round(performance.now() - startedAt));
     }
     return result;
   } catch (error) {
-    if (loggingEnabled()) {
+    if (contractDebugEnabled) {
       logFailure(operation, context, error, Math.round(performance.now() - startedAt));
     }
     throw error;
