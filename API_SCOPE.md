@@ -1,14 +1,20 @@
 # API_SCOPE.md — the HTTP API the frontend needs
 
-**Audience:** whoever writes the Go HTTP layer (the handlers in `Backend/cmd/server`).
-**Status:** the frontend is already wired to every endpoint below. Nothing else in the frontend blocks on it.
+**Audience:** whoever changes the Go HTTP layer (the handlers in `Backend/cmd/server`).
+**Status:** every endpoint below is implemented and verified end to end, so this is
+now a description of the API rather than a list of work.
 
 ## 1. Where we stand
 
-- `Backend/cmd/server/main.go` is a stub: it registers `/` and answers `"Hi there!"` on every path.
-- All the domain work already exists as packages: `person`, `marriage`, `children`, `integration`, `db`.
-- The frontend (`Frontend/src/api/*`) calls the endpoints below through one `fetch` wrapper. Until those routes exist it shows **"Could not reach the API."** and nothing else.
-- **No frontend change is needed** once the routes match this document. Endpoint paths live in one file: `Frontend/src/api/contracts.ts` (`ENDPOINTS`), so a rename is a one-line change there.
+- `Backend/cmd/server/main.go` opens the driver, registers both routers
+  (`cmd/server/person` and `cmd/server/marriage`) and listens on `:8080`.
+- All the domain work lives in the packages: `person`, `marriage`, `children`,
+  `integration`, `db`.
+- The frontend (`Frontend/src/api/*`) calls the endpoints below through one
+  `fetch` wrapper.
+- **No frontend change is needed** while the routes match this document. Endpoint
+  paths live in one file: `Frontend/src/api/contracts.ts` (`ENDPOINTS`), so a
+  rename is a one-line change there.
 
 ## 2. Conventions
 
@@ -27,66 +33,37 @@
 
 ## 3. Server wiring
 
-One place to hold the driver, one helper for JSON, then a route per endpoint. Go 1.22+ method patterns keep this readable:
+`cmd/server/main.go` holds the driver, registers both routers and listens:
 
 ```go
-package main
-
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"log"
-	"net/http"
-	"os"
-
-	"github.com/Muhammad9922/Generations/internal/db"
-	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
-)
-
-type api struct {
-	ctx    context.Context
-	driver neo4j.Driver
-}
-
-var errNotFound = errors.New("not found")
-
-func (a *api) write(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(body)
-}
-
-func (a *api) fail(w http.ResponseWriter, status int, err error) {
-	a.write(w, status, map[string]string{"error": err.Error()})
-}
-
-func main() {
-	ctx, driver := db.ConnectDatabase(os.Getenv("NEO4J_URI")) // same call the tests use
-	defer driver.Close(ctx)
-	a := &api{ctx: ctx, driver: driver}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /people", a.listPeople)
-	mux.HandleFunc("POST /people", a.createPerson)
-	mux.HandleFunc("GET /people/{id}", a.personDetails)
-	mux.HandleFunc("PATCH /people/{id}", a.updatePerson)
-	mux.HandleFunc("POST /marriages", a.createMarriage)
-	mux.HandleFunc("PATCH /marriages/{id}", a.updateMarriage)
-	mux.HandleFunc("DELETE /marriages/{id}", a.deleteMarriage)
-	mux.HandleFunc("POST /marriages/{id}/children", a.addChild)
-	mux.HandleFunc("DELETE /marriages/{id}/children/{childId}", a.removeChild)
-
-	log.Println("API listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", mux))
-}
+personRouter.RegisterPersonRoutes(mux, driver)
+marriageRouter.RegisterMarriageRoutes(mux, driver)
 ```
 
-`db.ConnectDatabase` uses `neo4j.BasicAuth("", "", "")` and `log.Fatalf`s on failure, so pass the URI from an environment variable of your choice (`NEO4J_URI`) and keep it out of the source.
+Each router is a package under `cmd/server` with one file per operation and a
+single `Register…Routes(mux, driver)` function:
+
+| Package | Endpoints |
+| --- | --- |
+| `cmd/server/person` | `GET /people`, `GET /people/{id}`, `POST /people`, `PATCH /people/{id}` |
+| `cmd/server/marriage` | `POST /marriages`, `PATCH /marriages/{id}`, `DELETE /marriages/{id}`, `POST /marriages/{id}/children`, `DELETE /marriages/{id}/children/{childId}` |
+
+`cmd/server/apiresponse` owns the two JSON envelopes — `Write(w, status, body)`
+and `Error(w, status, message)` — so no handler reaches for `http.Error`, whose
+`text/plain` body the frontend reports as "the API did not answer with JSON".
+
+`db.ConnectDatabase` uses `neo4j.BasicAuth("", "", "")` and `log.Fatalf`s on
+failure. `main` passes it `NEO4J_URI` when it is set and otherwise falls back to
+the local instance the packages' tests use; `API_ADDR` overrides the listen
+address the same way.
 
 ## 4. Endpoints
 
-Each section says what the UI does, the exact contract, and **where to connect it** in the existing packages.
+Each section says what the UI does, the exact contract, and where it is connected
+in the packages. The code sketches below are the original notes and are close to
+the handlers, not a copy of them: the live implementations are in
+`cmd/server/person/*.go` and `cmd/server/marriage/*.go`, and they are the ones to
+change.
 
 ---
 
@@ -411,27 +388,32 @@ These are enforced in the packages today and must stay server-side. The client n
 - The people in a marriage are immutable — there is deliberately no endpoint that changes them.
 - `CreateFamily` rolls back people it created if the marriage or a child link fails.
 
-## 7. Suggested order of work
+## 7. Order the work was done in
 
-1. `db.ConnectDatabase` + the `api` struct + `write`/`fail` helpers, then `GET /people` — this unblocks the palette.
-2. `GET /people/{id}` (the composition above) — this unblocks the details page, which is the whole app.
+1. `db.ConnectDatabase` + the `api` struct + `write`/`fail` helpers, then `GET /people` — this unblocked the palette.
+2. `GET /people/{id}` (the composition above) — this unblocked the details page, which is the whole app.
 3. `POST /people`, `PATCH /people/{id}`.
 4. `POST /marriages`, then `POST /marriages/{id}/children` and `DELETE /marriages/{id}/children/{childId}`.
 5. `PATCH /marriages/{id}`, `DELETE /marriages/{id}`.
 
-After each endpoint, open the app, filter DevTools on `api-contract`, and compare the logged request with this document.
+Re-checking a change: open the app, filter DevTools on `api-contract`, and compare
+the logged request with this document. `Generations/` holds the same calls as a
+Bruno collection (`People/` and `Marriages/`) for testing the API on its own.
 
 ## 8. Gaps and risks
 
 | Item | Note |
 | --- | --- |
-| `GET /people` has no backing function | New Cypher query, specified in §4.1. |
-| `GET /people/{id}` has no backing function | Compose it, specified in §4.2. `integration.GetFamilyCertificate` alone is not enough. |
-| `personFatherName` does not exist in the graph | Omit it from the list response; the palette hides the subtitle when absent. |
+| `GET /people` backing function | `person.GetPersonList`, ordered by name. |
+| `GET /people/{id}` backing function | Composed in `cmd/server/person/query.go` from `person.GetPerson`, `children.GetMarriageThatOfChild`, `children.GetMarriageThatOfSpouse`, `marriage.GetSpouses` and `children.GetChildren`. |
+| `personFatherName` does not exist in the graph | Omitted from the list response; the palette hides the subtitle when absent. |
 | `children.DeleteChildren` argument order | Person first, marriage second — the reverse of the route. |
-| Route paths | Register `/people`, `/marriages`, … **without** `/api`: the Vite proxy strips that prefix. |
+| Route paths | Registered `/people`, `/marriages`, … **without** `/api`: the Vite proxy strips that prefix. |
 | `GetSpouses` / `GetChildren` per marriage | `GET /people/{id}` calls them once per marriage. Fine at this scale; batch them if a person has many marriages. |
-| Dates | Always `DateProper` (`DD-MM-YYYY`). A raw ISO string is only converted by `GetProperDate` on input. |
+| Dates | Always `DateProper` (`DD-MM-YYYY`). A raw ISO string is only converted by `GetProperDate` on input, and `POST /people` deliberately rejects ISO so the shape stays unambiguous. |
+| `GetMarriageFromMarriageId` returns one row per **marriage** | Not one per spouse. The spouses come from `marriage.GetSpouses`; reading its rows as spouses answered 500 for every person who had parents. |
+| Clearing a date | `PATCH /people/{id}` spells "clear" as JSON `null` and `PATCH /marriages/{id}` spells it as `""`. Both are turned into `&""` before the package sees them, where `nil` means "not sent" — see the table in `Backend/README.md`. |
+| A person cannot marry themselves | The two-spouse gender rule rejects it, so the message is "both spouses are male/female" rather than a dedicated one. |
 
 ## 9. Frontend file map
 
