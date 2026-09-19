@@ -3,6 +3,7 @@ package person
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -30,6 +31,74 @@ func FormatDate(val any) (string, bool) {
 	}
 }
 
+// ymdRegex captures YYYY-MM-DD and dmyRegex captures DD-MM-YYYY. The two forms
+// are unambiguous, so a value can only match one of them.
+var ymdRegex = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})$`)
+var dmyRegex = regexp.MustCompile(`^(\d{2})-(\d{2})-(\d{4})$`)
+
+// ParseDateProper accepts a date written as either DD-MM-YYYY or YYYY-MM-DD and
+// returns it in the canonical DD-MM-YYYY form used throughout this package.
+//
+// Unlike NormalizeDate it fully validates the value: the components must be in
+// range (no month 13) and the day must exist in that month (31-02-2023 is
+// rejected). Any other format is rejected.
+func ParseDateProper(input string) (DateProper, error) {
+	normalized, err := NormalizeDate(input)
+	if err != nil {
+		return "", err
+	}
+
+	// normalized is guaranteed to be YYYY-MM-DD by NormalizeDate.
+	parts := ymdRegex.FindStringSubmatch(normalized)
+	if parts == nil {
+		return "", fmt.Errorf("invalid date %q: must be YYYY-MM-DD or DD-MM-YYYY", input)
+	}
+
+	candidate := DateProper(fmt.Sprintf("%s-%s-%s", parts[3], parts[2], parts[1]))
+
+	if !candidate.IsValid() {
+		return "", fmt.Errorf("invalid date %q: not a real date in DD-MM-YYYY or YYYY-MM-DD format", input)
+	}
+
+	// IsValid is regex-only, so it still accepts 31-02-2023; ParseTime rejects
+	// days that do not exist in the given month.
+	if _, ok := candidate.ParseTime(); !ok {
+		return "", fmt.Errorf("invalid date %q: that calendar day does not exist", input)
+	}
+
+	return candidate, nil
+}
+
+// NormalizeDate takes a date in either YYYY-MM-DD or DD-MM-YYYY and always
+// returns it as YYYY-MM-DD.
+//
+// NOTE: the result is ISO formatted, which the DateProper helpers (IsValid,
+// ParseTime, GetNeoDate) do NOT accept — they expect DD-MM-YYYY. Use
+// ParseDateProper when you need a validated DateProper.
+func NormalizeDate(dateStr string) (string, error) {
+	// Check if it is already in YYYY-MM-DD format
+	if ymdRegex.MatchString(dateStr) {
+		return dateStr, nil
+	}
+
+	// Check if it matches DD-MM-YYYY and extract the parts.
+	// FindStringSubmatch returns a slice of the captured groups inside the parentheses ()
+	matches := dmyRegex.FindStringSubmatch(dateStr)
+
+	if matches != nil {
+		// matches[0] is the full matched string ("19-09-2026")
+		// matches[1] is the DD part ("19")
+		// matches[2] is the MM part ("09")
+		// matches[3] is the YYYY part ("2026")
+
+		// Reformat and return as YYYY-MM-DD
+		return fmt.Sprintf("%s-%s-%s", matches[3], matches[2], matches[1]), nil
+	}
+
+	// Neither regex matched
+	return "", fmt.Errorf("invalid date format %q: must be YYYY-MM-DD or DD-MM-YYYY", dateStr)
+}
+
 func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson, error) {
 	const query = `
     MATCH (p:Person {id: $id})
@@ -51,7 +120,7 @@ func GetPerson(ctx context.Context, driver neo4j.Driver, id string) (*NewPerson,
 	}
 
 	if len(result.Records) == 0 {
-		return nil, fmt.Errorf("person not found with id: %s", id)
+		return nil, fmt.Errorf("%w: person not found with id: %s", ErrNotFound, id)
 	}
 
 	personMap := result.Records[0].AsMap()

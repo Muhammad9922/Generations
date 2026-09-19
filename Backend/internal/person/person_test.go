@@ -318,6 +318,25 @@ func readPersonProperties(t *testing.T, ctx context.Context, driver neo4j.Driver
 	return props
 }
 
+// propsDate renders a persisted date property into the canonical DD-MM-YYYY
+// form. Date properties come back from Neo4j as native neo4j.Date values (not
+// strings), so they must be formatted before being compared to a DateProper.
+func propsDate(t *testing.T, props map[string]any, key string) string {
+	t.Helper()
+
+	raw, ok := props[key]
+	if !ok || raw == nil {
+		return ""
+	}
+
+	formatted, ok := FormatDate(raw)
+	if !ok {
+		t.Fatalf("could not format %s value of type %T", key, raw)
+	}
+
+	return formatted
+}
+
 func TestUpdatePerson(t *testing.T) {
 	ctx, driver := db.ConnectDatabase("bolt://192.168.0.133:7687")
 	defer driver.Close(ctx)
@@ -377,13 +396,13 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["gender"]; got != string(updatedGender) {
 			t.Errorf("persisted gender = %v, want %q", got, updatedGender)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOB) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOB) {
 			t.Errorf("persisted date_of_birth = %v, want %q", got, updatedDOB)
 		}
 		if got := props["alive"]; got != updatedAlive {
 			t.Errorf("persisted alive = %v, want %v", got, updatedAlive)
 		}
-		if got := props["date_of_death"]; got != string(updatedDOD) {
+		if got := propsDate(t, props, "date_of_death"); got != string(updatedDOD) {
 			t.Errorf("presisted death - %v, want %v", got, updatedDOD)
 		}
 	})
@@ -411,7 +430,7 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["gender"]; got != string(updatedGender) {
 			t.Errorf("gender should be untouched = %v, want %q", got, updatedGender)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOB) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOB) {
 			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOB)
 		}
 		if got := props["alive"]; got != updatedAlive {
@@ -442,7 +461,7 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["name"]; got != updatedNameOnly {
 			t.Errorf("name should be untouched = %v, want %q", got, updatedNameOnly)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOB) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOB) {
 			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOB)
 		}
 		if got := props["alive"]; got != updatedAlive {
@@ -467,7 +486,7 @@ func TestUpdatePerson(t *testing.T) {
 		}
 
 		props := readPersonProperties(t, ctx, driver, id)
-		if got := props["date_of_birth"]; got != string(updatedDOBOnly) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOBOnly) {
 			t.Errorf("persisted date_of_birth = %v, want %q", got, updatedDOBOnly)
 		}
 		if got := props["name"]; got != updatedNameOnly {
@@ -507,7 +526,7 @@ func TestUpdatePerson(t *testing.T) {
 		if got := props["gender"]; got != string(updatedGenderAgain) {
 			t.Errorf("gender should be untouched = %v, want %q", got, updatedGenderAgain)
 		}
-		if got := props["date_of_birth"]; got != string(updatedDOBOnly) {
+		if got := propsDate(t, props, "date_of_birth"); got != string(updatedDOBOnly) {
 			t.Errorf("date_of_birth should be untouched = %v, want %q", got, updatedDOBOnly)
 		}
 	})
