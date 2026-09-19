@@ -1,0 +1,47 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # The API is another container on the same compose network. The trailing
+    # slash on proxy_pass strips the /api prefix, which is the same rewrite the
+    # Vite dev proxy does, so the app calls /api/people in both places.
+    #
+    # API_UPSTREAM must not end with a slash; the entrypoint substitutes it into
+    # this template at container start.
+    location /api/ {
+        proxy_pass ${API_UPSTREAM}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # A person's certificate is composed from several graph round trips.
+        proxy_read_timeout 60s;
+    }
+
+    # Vite fingerprints these filenames, so a change produces a new URL.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # The shell must never be cached, or a deploy leaves open tabs on the old
+    # build until the cache expires.
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    # Client-side routing: every other path is the app shell, and the router
+    # decides what to render.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
