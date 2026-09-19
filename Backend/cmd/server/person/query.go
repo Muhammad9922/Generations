@@ -91,7 +91,12 @@ func handleGetPerson(driver neo4j.Driver) http.HandlerFunc {
 		// Getting Person
 		personResponse, err := person.GetPerson(ctx, driver, r.PathValue("id"))
 
-		if err != nil || personResponse == nil {
+		if personResponse == nil {
+			http.Error(w, "Error While Getting Person", http.StatusNotFound)
+			return
+		}
+
+		if err != nil {
 			http.Error(w, "Error While Getting Person", http.StatusBadRequest)
 			return
 		} else {
