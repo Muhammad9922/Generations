@@ -1,4 +1,4 @@
-import { dateValue, type PersonDetailsData, type User } from "./personModel.ts";
+import { compareByBirthAsc, compareByBirthDesc, compareNames, dateValue, type PersonDetailsData, type User } from "./personModel.ts";
 
 /**
  * The extended family of one person, derived from payloads the API already
@@ -147,7 +147,7 @@ export function buildRelatives(root: PersonDetailsData, fetched: Map<string, Per
 }
 
 /** Closest relation first; within a relation, oldest first, then by name. */
-export function compareRelatives(a: Relative, b: Relative): number {
+function compareRelatives(a: Relative, b: Relative): number {
   const kind = RELATION_ORDER.indexOf(a.kind) - RELATION_ORDER.indexOf(b.kind);
   if (kind !== 0) return kind;
   const first = dateValue(a.user.dateOfBirth) ?? Infinity;
@@ -160,19 +160,10 @@ export function compareRelatives(a: Relative, b: Relative): number {
 export type RelationSort = "closest" | "name" | "oldest" | "youngest";
 
 export function sortRelatives(relatives: Relative[], sort: RelationSort): Relative[] {
-  const byName = (a: Relative, b: Relative) => a.user.name.localeCompare(b.user.name) || a.user.id.localeCompare(b.user.id);
-  const byBirth = (a: Relative, b: Relative) => (dateValue(a.user.dateOfBirth) ?? Infinity) - (dateValue(b.user.dateOfBirth) ?? Infinity) || byName(a, b);
   const sorted = [...relatives];
-  if (sort === "name") sorted.sort(byName);
-  else if (sort === "oldest") sorted.sort(byBirth);
-  // Youngest first is oldest-first reversed, but an unknown birth date has to
-  // stay last in both directions rather than leading the list.
-  else if (sort === "youngest") sorted.sort((a, b) => {
-    const first = dateValue(a.user.dateOfBirth);
-    const second = dateValue(b.user.dateOfBirth);
-    if (first === null || second === null) return first === second ? byName(a, b) : first === null ? 1 : -1;
-    return second - first || byName(a, b);
-  });
+  if (sort === "name") sorted.sort((a, b) => compareNames(a.user, b.user));
+  else if (sort === "oldest") sorted.sort((a, b) => compareByBirthAsc(a.user, b.user));
+  else if (sort === "youngest") sorted.sort((a, b) => compareByBirthDesc(a.user, b.user));
   else sorted.sort(compareRelatives);
   return sorted;
 }

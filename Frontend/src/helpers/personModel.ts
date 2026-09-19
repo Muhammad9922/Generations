@@ -125,6 +125,37 @@ export function isYoungerThan(spouses: User[], person: User): boolean {
 export function otherSpouses(marriage: FamilyCertificate, personId: string): User[] {
   return (marriage.Spouse ?? []).filter((user) => user.id !== personId);
 }
+
+/** Orders people by name, falling back to the id so the order is always stable. */
+export function compareNames(a: User, b: User): number {
+  return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+}
+
+/**
+ * Orders by birth date, oldest first. A person with no recorded birth date
+ * sorts last in either direction — an unknown date is missing information, not
+ * evidence that someone was born earliest.
+ */
+export function compareByBirthAsc(a: User, b: User): number {
+  const first = dateValue(a.dateOfBirth);
+  const second = dateValue(b.dateOfBirth);
+  if (first === null || second === null) {
+    if (first === second) return compareNames(a, b);
+    return first === null ? 1 : -1;
+  }
+  return first - second || compareNames(a, b);
+}
+
+/** Orders by birth date, youngest first, with the same rule for unknown dates. */
+export function compareByBirthDesc(a: User, b: User): number {
+  const first = dateValue(a.dateOfBirth);
+  const second = dateValue(b.dateOfBirth);
+  if (first === null || second === null) {
+    if (first === second) return compareNames(a, b);
+    return first === null ? 1 : -1;
+  }
+  return second - first || compareNames(a, b);
+}
 export function sortedChildren(marriages: FamilyCertificate[]) {
   return marriages.flatMap((marriage) => (marriage.Children ?? []).map((user) => ({ user, familyId: marriage.Id })))
     .sort((a, b) => {

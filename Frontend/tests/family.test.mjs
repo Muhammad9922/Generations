@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  ageLabel, dateValue, familyColor, isYoungerThan, newUser, oppositeGender, otherSpouses, personToUser, reverseDate,
-  sortedChildren, toInputDate,
+  ageLabel, compareByBirthAsc, compareByBirthDesc, compareNames, dateValue, familyColor, isYoungerThan, newUser,
+  oppositeGender, otherSpouses, personToUser, reverseDate, sortedChildren, toInputDate,
 } from "../src/helpers/personModel.ts";
 import { samplePeople, samplePersonDetails } from "./sampleFamily.mjs";
 
@@ -82,4 +82,20 @@ test("newUser drafts start alive and empty; oppositeGender pairs the accepted ge
 test("family colors use stable marriage identity, not ordering", () => {
   assert.equal(familyColor("id-1-marriage-1"), familyColor("id-1-marriage-1"));
   assert.notEqual(familyColor("id-1-marriage-1"), familyColor("id-1-marriage-2"));
+});
+
+// The singles and relationships pages both order people with these, so an
+// unknown birth date must not jump to the front just because the order flipped.
+test("people sort by name, and by age in either direction with unknown dates last", () => {
+  const oldest = newUser("a", "Ada", "01-01-1950");
+  const youngest = newUser("b", "Bob", "01-01-2020");
+  const unknown = newUser("c", "Cy", "");
+  const people = [youngest, unknown, oldest];
+
+  assert.deepEqual([...people].sort(compareNames).map((p) => p.id), ["a", "b", "c"]);
+  assert.deepEqual([...people].sort(compareByBirthAsc).map((p) => p.id), ["a", "b", "c"]);
+  assert.deepEqual([...people].sort(compareByBirthDesc).map((p) => p.id), ["b", "a", "c"]);
+  // Two people with no date at all fall back to their names, not to input order.
+  const [secondUnknown] = [newUser("d", "Bea", "")];
+  assert.deepEqual([...people, secondUnknown].sort(compareByBirthAsc).map((p) => p.id), ["a", "b", "d", "c"]);
 });
