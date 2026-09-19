@@ -5,6 +5,7 @@ import { Theme } from "@radix-ui/themes";
 import { KBarProvider, type Action } from "kbar";
 import { Home as HomeIcon, Moon } from "lucide-react";
 import Home from "./pages/Home";
+import NewFamily from "./pages/NewFamily";
 import CommandPalette from "./components/CommandPalette";
 import { createPersonActions } from "./helpers/PersonActions.ts";
 import { getAllPeople, type Person } from "./api/people.ts";
@@ -72,6 +73,9 @@ export default function App() {
         <Routes>
           <Route index element={<Home dark={dark} onToggleTheme={() => setDark((value) => !value)} />} />
           <Route path="people/:id" element={<PersonDetails people={people} loading={loading} error={error} onPeopleChanged={refreshPeople} />} />
+          {/* A new family has no person yet, so it shares the details layout
+              without the shared people load the person route needs. */}
+          <Route path="families/new" element={<NewFamily onPeopleChanged={refreshPeople} />} />
           <Route path="*" element={<main className="p-8"><h1>Page not found</h1><Link to="/">Go home</Link></main>} />
         </Routes>
       </KBarProvider>
